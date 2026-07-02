@@ -14,5 +14,4 @@ class Config:
     )
     RATELIMIT_ENABLED = os.environ.get("RATELIMIT_ENABLED", "true").lower() == "true"
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-    DATAFORSEO_LOGIN = os.environ.get("DATAFORSEO_LOGIN", "")
-    DATAFORSEO_PASSWORD = os.environ.get("DATAFORSEO_PASSWORD", "")
+    SERANKING_API_KEY = os.environ.get("SERANKING_API_KEY", "")

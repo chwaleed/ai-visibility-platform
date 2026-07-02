@@ -27,5 +27,5 @@ Graded constraint: **simplicity beats over-engineering** — no new deps, layers
 - Conventional commit subjects (`feat(backend): ...`, `test: ...`, `chore: ...`).
 
 ## Env (never commit real keys)
-- Backend `.env`: `ANTHROPIC_API_KEY`, `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`, `DATABASE_URL`, `SECRET_KEY`, `CORS_ORIGINS`
+- Backend `.env`: `ANTHROPIC_API_KEY`, `SERANKING_API_KEY`, `DATABASE_URL`, `SECRET_KEY`, `CORS_ORIGINS`
 - Frontend `.env`: `VITE_API_BASE_URL` (build ARG in Docker — Vite bakes it at build time)

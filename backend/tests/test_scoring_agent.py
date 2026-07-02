@@ -63,10 +63,8 @@ def _items(n=3):
 
 
 def test_score_all_happy_path(app, monkeypatch):
-    monkeypatch.setattr(scoring, "fetch_search_volumes",
-                        lambda kws: {k: 1000 for k in kws})
-    monkeypatch.setattr(scoring, "fetch_difficulties",
-                        lambda kws: {k: 40 for k in kws})
+    monkeypatch.setattr(scoring, "fetch_keyword_metrics",
+                        lambda kws: ({k: 1000 for k in kws}, {k: 40 for k in kws}))
     monkeypatch.setattr(scoring, "generate_text",
                         lambda system, user, **kw: ("Frase is great.", Usage(10, 20)))
 
@@ -78,8 +76,7 @@ def test_score_all_happy_path(app, monkeypatch):
 
 
 def test_score_all_probe_failure_marks_unknown_and_continues(app, monkeypatch):
-    monkeypatch.setattr(scoring, "fetch_search_volumes", lambda kws: {})
-    monkeypatch.setattr(scoring, "fetch_difficulties", lambda kws: {})
+    monkeypatch.setattr(scoring, "fetch_keyword_metrics", lambda kws: ({}, {}))
     calls = {"n": 0}
 
     def flaky(system, user, **kw):
@@ -96,13 +93,12 @@ def test_score_all_probe_failure_marks_unknown_and_continues(app, monkeypatch):
     assert failed.visible is None and failed.position is None
     ok = next(s for s in scored if s.question == "Q0?")
     assert ok.visible is False
-    # DataForSEO empty → neutral defaults applied
+    # SE Ranking empty → neutral defaults applied
     assert ok.volume == 0 and ok.difficulty == 50
 
 
 def test_probe_prompt_never_leaks_target(app, monkeypatch):
-    monkeypatch.setattr(scoring, "fetch_search_volumes", lambda kws: {})
-    monkeypatch.setattr(scoring, "fetch_difficulties", lambda kws: {})
+    monkeypatch.setattr(scoring, "fetch_keyword_metrics", lambda kws: ({}, {}))
     seen = []
 
     def spy(system, user, **kw):

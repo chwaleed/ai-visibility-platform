@@ -1,7 +1,7 @@
 """Agent 2 — Visibility Scoring.
 
 For each discovered query:
-1. Real search volume + difficulty (DataForSEO, batched once per run).
+1. Real search volume + difficulty (SE Ranking, batched once per run).
 2. Visibility probe: Haiku answers the question NATURALLY (the prompt never
    mentions the target business — mentioning it would bias the simulation),
    then deterministic string-matching detects which brands appear and in
@@ -14,7 +14,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
-from app.agents.dataforseo import fetch_difficulties, fetch_search_volumes
+from app.agents.seranking import fetch_keyword_metrics
 from app.agents.llm import PROBE_MODEL, Usage, generate_text
 from app.models import BusinessProfile
 from app.schemas.agent_outputs import DiscoveredQueryItem
@@ -88,8 +88,7 @@ class VisibilityScoringAgent:
         self, profile: BusinessProfile, items: list[DiscoveredQueryItem],
     ) -> tuple[list[ScoredQuery], Usage]:
         keywords = [i.keyword for i in items]
-        volumes = fetch_search_volumes(keywords)
-        difficulties = fetch_difficulties(keywords)
+        volumes, difficulties = fetch_keyword_metrics(keywords)
 
         total = Usage()
         target = brand_variants(profile.domain, profile.name)
