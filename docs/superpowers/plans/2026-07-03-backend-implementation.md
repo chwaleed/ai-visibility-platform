@@ -2483,24 +2483,7 @@ def test_run_endpoint_rate_limited(limited_client):
 
 - [ ] **Step 2: Run** — `uv run pytest tests/test_rate_limit.py -q` — Expected: PASS (limiter was wired in Tasks 1/12). If FAIL, fix wiring, not the test.
 
-- [ ] **Step 3: Create `.env.example`**
-
-`backend/.env.example`:
-```env
-# --- LLM provider (required for real pipeline runs; tests run without it) ---
-ANTHROPIC_API_KEY=sk-ant-...
-
-# --- Real search data (required for real volume/difficulty; degrades gracefully) ---
-DATAFORSEO_LOGIN=you@example.com
-DATAFORSEO_PASSWORD=your-dataforseo-password
-
-# --- App ---
-DATABASE_URL=sqlite:///dev.db
-SECRET_KEY=change-me
-FLASK_ENV=development
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000
-RATELIMIT_ENABLED=true
-```
+- [ ] **Step 3: Verify `.env.example`** (already created earlier and updated by the provider swap — confirm it matches the current env schema: `ANTHROPIC_API_KEY`, `SERANKING_API_KEY`, `DATABASE_URL`, `SECRET_KEY`, `FLASK_ENV`, `CORS_ORIGINS`, `RATELIMIT_ENABLED`)
 
 - [ ] **Step 4: Full suite** — `uv run pytest -q` — Expected: all pass.
 - [ ] **Step 5: Commit** — `git add backend && git commit -m "test(backend): rate limiting + env template"`
@@ -2570,7 +2553,7 @@ volumes:
 4. **Architecture decisions** — app factory + blueprints; ApiResponse single construction point (bare success bodies to match the assessment's documented responses); agent separation (3 classes, orchestrator, failure policy: A1 fail→run fails, A2 per-query isolation, A3 fail→run completes without recs); dual-mode execution (why sync default + `?async=1` thread over Celery).
 5. **Model selection (deliberate)** — Opus 4.8 for generation quality on Agents 1&3 (structured outputs via `messages.parse`), Haiku 4.5 for 15–20 parallel visibility probes (speed/cost, consumer-chatbot simulation); provider portability = reimplement `app/agents/llm.py` only.
 6. **Opportunity score formula** — weights table + factor rationale + the `unknown → gap 0.7` decision.
-7. **Real data** — DataForSEO endpoints used, batching (2 calls/run ≈ $0.06 → free $1 trial ≈ 16 real runs, no card), graceful degradation policy; evaluated free alternative documented (SE Ranking keyword API, 100K free credits — not chosen: DataForSEO is the brief's named provider and the swap is isolated to `agents/dataforseo.py` if ever needed); note on DataForSEO's LLM Mentions API as the production upgrade path for cross-model visibility checks.
+7. **Real data & the provider story** — SE Ranking Keyword Research API: ONE batched call per run (`/v1/keywords/export`, 100 credits flat, 100K free ≈ 1,000 runs), returns volume + difficulty together; graceful degradation policy. Tell the swap story honestly: started on DataForSEO (the brief's named example) → its trial proved account-gated (40104 verification wall, then 40201 activity pause) → because all provider code was isolated in one module, the swap touched exactly one file + two import lines, live-verified same day. Note DataForSEO's LLM Mentions API as the production upgrade path for cross-model visibility checks.
 8. **Prompt engineering** — where prompts live, schema-in-prompt + `parse()` enforcement + retry/fallback layers; probe prompt never names the target (bias).
 9. **Tradeoffs & honest limitations** — visibility simulated via Claude (not actual ChatGPT), volume keyed to extracted keyword not full question, SQLite, in-process thread (single worker) for async.
 10. **AI tools disclosure** — per assessment requirement.

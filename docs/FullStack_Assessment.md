@@ -20,7 +20,7 @@ We build AI visibility and search intelligence software that helps businesses un
 
 This assessment asks you to design and build a simplified version of this pipeline — a RESTful Flask API with an AI-powered multi-agent backend (Task 1\) AND a functional frontend UI to interact with that API (Task 2).
 
-**TASK 1 — Backend: AI Visibility Intelligence API**
+**TASK 1 — Backend: AI Visibility Intelligence API**  
 
 # **What You're Building (Task 1\)**
 
