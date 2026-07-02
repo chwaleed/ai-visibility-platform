@@ -41,3 +41,13 @@ def test_recommendation_output_parses():
             "priority": "high"}]}
     )
     assert out.recommendations[0].priority == "high"
+
+
+def test_discovery_rejects_empty_queries():
+    with pytest.raises(ValidationError):
+        DiscoveryOutput.model_validate({"queries": []})
+
+
+def test_recommendation_rejects_empty_list():
+    with pytest.raises(ValidationError):
+        RecommendationOutput.model_validate({"recommendations": []})

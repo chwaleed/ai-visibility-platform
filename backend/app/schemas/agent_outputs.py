@@ -17,7 +17,7 @@ class DiscoveredQueryItem(BaseModel):
 
 
 class DiscoveryOutput(BaseModel):
-    queries: list[DiscoveredQueryItem]
+    queries: list[DiscoveredQueryItem] = Field(min_length=1)
 
 
 class RecommendationItem(BaseModel):
@@ -30,4 +30,4 @@ class RecommendationItem(BaseModel):
 
 
 class RecommendationOutput(BaseModel):
-    recommendations: list[RecommendationItem]
+    recommendations: list[RecommendationItem] = Field(min_length=1)
