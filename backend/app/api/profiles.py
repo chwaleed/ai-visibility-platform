@@ -3,7 +3,7 @@ import threading
 from flask import Blueprint, Response, current_app, request
 
 from app.extensions import db, limiter
-from app.models import BusinessProfile, PipelineRun
+from app.models import BusinessProfile, ContentRecommendation, PipelineRun
 from app.schemas.requests import ProfileCreate
 from app.services.pipeline import build_run_payload, execute_pipeline, start_run
 from app.utils.responses import ApiResponse
@@ -100,3 +100,13 @@ def run_history(uuid: str) -> tuple[Response, int]:
     if profile is None:
         return ApiResponse.error("not_found", f"Profile {uuid} not found", 404)
     return ApiResponse.ok({"items": [r.to_dict() for r in profile.runs]})
+
+
+@profiles_bp.get("/profiles/<uuid>/recommendations")
+def list_recommendations(uuid: str) -> tuple[Response, int]:
+    profile = db.session.get(BusinessProfile, uuid)
+    if profile is None:
+        return ApiResponse.error("not_found", f"Profile {uuid} not found", 404)
+    recs = (ContentRecommendation.query.filter_by(profile_uuid=uuid)
+            .order_by(ContentRecommendation.created_at.desc()).all())
+    return ApiResponse.ok({"items": [r.to_dict() for r in recs]})
