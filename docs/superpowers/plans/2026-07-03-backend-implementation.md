@@ -1499,14 +1499,13 @@ class VisibilityScoringAgent:
         target = brand_variants(profile.domain, profile.name)
         competitors = [brand_variants(c) for c in profile.competitors]
 
-        def probe(item: DiscoveredQueryItem) -> ScoredQuery:
+        def probe(item: DiscoveredQueryItem) -> tuple[ScoredQuery, Usage]:
             visible: bool | None
             position: int | None
+            probe_usage = Usage()
             try:
-                answer, usage = generate_text(PROBE_SYSTEM, item.question,
-                                              model=PROBE_MODEL)
-                total.input_tokens += usage.input_tokens
-                total.output_tokens += usage.output_tokens
+                answer, probe_usage = generate_text(PROBE_SYSTEM, item.question,
+                                                    model=PROBE_MODEL)
                 visible, position = extract_visibility(answer, target, competitors)
             except Exception as e:  # noqa: BLE001 — isolate per-query failures
                 logger.warning("visibility probe failed for %r: %s", item.question, e)
@@ -1520,10 +1519,16 @@ class VisibilityScoringAgent:
                 visible=visible, position=position,
                 opportunity_score=compute_opportunity_score(
                     volume, difficulty, visible, position, item.intent),
-            )
+            ), probe_usage
 
         with ThreadPoolExecutor(max_workers=MAX_PROBE_WORKERS) as pool:
-            scored = list(pool.map(probe, items))
+            results = list(pool.map(probe, items))
+        scored = [r for r, _ in results]
+        # Usage is summed here in the main thread — `+=` from inside worker
+        # threads would be a read-modify-write race and could drop updates.
+        for _, u in results:
+            total.input_tokens += u.input_tokens
+            total.output_tokens += u.output_tokens
         return scored, total
 
     def score_single(
