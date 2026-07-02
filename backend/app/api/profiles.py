@@ -1,6 +1,6 @@
 import threading
 
-from flask import Blueprint, current_app, request
+from flask import Blueprint, Response, current_app, request
 
 from app.extensions import db, limiter
 from app.models import BusinessProfile, PipelineRun
@@ -23,7 +23,7 @@ def _stats(profile: BusinessProfile) -> dict:
 
 
 @profiles_bp.post("/profiles")
-def create_profile():
+def create_profile() -> tuple[Response, int]:
     data = ProfileCreate.model_validate(request.get_json(force=True, silent=True) or {})
     profile = BusinessProfile(
         name=data.name, domain=data.domain, industry=data.industry,
@@ -41,13 +41,13 @@ def create_profile():
 
 
 @profiles_bp.get("/profiles")
-def list_profiles():
+def list_profiles() -> tuple[Response, int]:
     profiles = BusinessProfile.query.order_by(BusinessProfile.created_at.desc()).all()
     return ApiResponse.ok({"items": [{**p.to_dict(), **_stats(p)} for p in profiles]})
 
 
 @profiles_bp.get("/profiles/<uuid>")
-def get_profile(uuid: str):
+def get_profile(uuid: str) -> tuple[Response, int]:
     profile = db.session.get(BusinessProfile, uuid)
     if profile is None:
         return ApiResponse.error("not_found", f"Profile {uuid} not found", 404)
@@ -56,7 +56,7 @@ def get_profile(uuid: str):
 
 @profiles_bp.post("/profiles/<uuid>/run")
 @limiter.limit("5 per minute")
-def run_pipeline(uuid: str):
+def run_pipeline(uuid: str) -> tuple[Response, int]:
     profile = db.session.get(BusinessProfile, uuid)
     if profile is None:
         return ApiResponse.error("not_found", f"Profile {uuid} not found", 404)
@@ -87,7 +87,7 @@ def run_pipeline(uuid: str):
 
 
 @profiles_bp.get("/runs/<run_uuid>")
-def get_run(run_uuid: str):
+def get_run(run_uuid: str) -> tuple[Response, int]:
     run = db.session.get(PipelineRun, run_uuid)
     if run is None:
         return ApiResponse.error("not_found", f"Run {run_uuid} not found", 404)
@@ -95,7 +95,7 @@ def get_run(run_uuid: str):
 
 
 @profiles_bp.get("/profiles/<uuid>/runs")
-def run_history(uuid: str):
+def run_history(uuid: str) -> tuple[Response, int]:
     profile = db.session.get(BusinessProfile, uuid)
     if profile is None:
         return ApiResponse.error("not_found", f"Profile {uuid} not found", 404)
