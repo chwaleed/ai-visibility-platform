@@ -1,3 +1,17 @@
+import { Route, Routes } from "react-router"
+import { AppShell } from "@/components/layout/AppShell"
+import CreateProfile from "@/pages/CreateProfile"
+import Dashboard from "@/pages/Dashboard"
+import ProfileDetail from "@/pages/ProfileDetail"
+
 export default function App() {
-  return <div className="p-8 text-2xl font-semibold">AI Visibility</div>
+  return (
+    <Routes>
+      <Route element={<AppShell />}>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/profiles/new" element={<CreateProfile />} />
+        <Route path="/profiles/:uuid" element={<ProfileDetail />} />
+      </Route>
+    </Routes>
+  )
 }
