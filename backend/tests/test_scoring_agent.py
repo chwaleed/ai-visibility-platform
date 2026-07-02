@@ -110,3 +110,9 @@ def test_probe_prompt_never_leaks_target(app, monkeypatch):
     for system, user in seen:
         assert "frase" not in system.lower()      # no bias leakage
         assert "frase" not in user.lower()
+
+
+def test_hyphenated_brand_mention_matches():
+    visible, pos = extract_visibility(
+        "Surfer-SEO is the leader.", brand_variants("surferseo.com", None), [])
+    assert visible is True and pos == 1

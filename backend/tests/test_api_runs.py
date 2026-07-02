@@ -1,12 +1,10 @@
 import time
 
-from app.services import pipeline as pipeline_service
-
 VALID = {"name": "Frase", "domain": "frase.io", "industry": "SEO",
          "description": "", "competitors": []}
 
 
-def _fake_execute(profile_uuid, run_uuid):
+def _fake_execute(profile_uuid: str, run_uuid: str) -> None:
     """Stands in for the real pipeline: marks the run completed."""
     from datetime import datetime, timezone
 
@@ -65,3 +63,6 @@ def test_run_history(client, monkeypatch):
     res = client.get(f"/api/v1/profiles/{uuid}/runs")
     assert res.status_code == 200
     assert len(res.get_json()["items"]) == 1
+    prof = client.get(f"/api/v1/profiles/{uuid}").get_json()
+    assert prof["last_run_status"] == "completed"
+    assert prof["last_run_at"] is not None

@@ -8,9 +8,10 @@ from app.schemas.requests import ProfileCreate
 def test_profile_create_valid():
     p = ProfileCreate(
         name="Frase", domain="Frase.io ", industry="SEO",
-        description="x", competitors=["a.com", "b.com"],
+        description="x", competitors=["a.com", "  ", "HTTPS://www.B.com/"],
     )
     assert p.domain == "frase.io"  # normalized
+    assert p.competitors == ["a.com", "b.com"]
 
 
 def test_profile_create_rejects_missing_fields():

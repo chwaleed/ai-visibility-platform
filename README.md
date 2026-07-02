@@ -6,16 +6,6 @@ A business registers its profile, triggers a 3-agent AI pipeline, and gets back:
 
 Built as a Full Stack Engineer assessment: **Flask API + multi-agent backend** (Task 1) and **React dashboard** (Task 2).
 
-## Status
-
-| Piece | State |
-|---|---|
-| Backend — core (app factory, models, migrations, schemas, all 3 agents, orchestrator) | ✅ Built, reviewed, 41/41 tests |
-| Backend — HTTP endpoints, rate limiting, Docker | 🔨 In progress |
-| Frontend — React dashboard | ⏳ Pending (starts after backend) |
-
-*This section is removed at submission; until then it reflects reality.*
-
 ## How the pipeline works
 
 ```
@@ -114,7 +104,7 @@ backend/            Flask API — app factory, blueprints, agents, orchestrator
   app/services/     pipeline.py — orchestrator + run payload builder
   app/utils/        responses.py (ApiResponse) · scoring.py (opportunity formula)
   app/models/       4 SQLAlchemy models, UUID PKs, Alembic migrations
-  tests/            41 tests, all external calls mocked
+  tests/            59 tests, all external calls mocked
 frontend/           React + TypeScript dashboard (pending)
 docs/               assessment brief · design spec · implementation plans
 ```

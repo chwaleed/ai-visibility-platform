@@ -57,7 +57,7 @@ def brand_variants(domain: str, name: str | None = None) -> list[str]:
 
 def _first_index(compact_answer: str, variants: list[str]) -> int | None:
     """First occurrence of any variant, measured in space-stripped space."""
-    hits = [idx for v in variants if (idx := compact_answer.find(v.replace(" ", ""))) != -1]
+    hits = [idx for v in variants if (idx := compact_answer.find(v.replace(" ", "").replace("-", ""))) != -1]
     return min(hits) if hits else None
 
 
@@ -71,7 +71,8 @@ def extract_visibility(
     brand with spacing ("Surfer SEO") still matches its domain root
     ("surferseo") — no fragile single-word heuristics needed.
     """
-    compact = answer.lower().replace(" ", "")
+    # ponytail: space/hyphen-stripped matching can false-positive across word boundaries; acceptable ceiling — upgrade to token-aware matching if it bites.
+    compact = answer.lower().replace(" ", "").replace("-", "")
     target_idx = _first_index(compact, target_variants)
     if target_idx is None:
         return False, None

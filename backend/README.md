@@ -21,13 +21,14 @@ uv run flask run           # → http://localhost:5000
 **Or from the repo root with Docker (no Python install needed):**
 
 ```bash
+cp backend/.env.example backend/.env   # run from repo root — compose's env_file requires the file to exist; fill in real keys for live pipeline runs, or leave placeholders: the API still works with graceful degradation
 docker compose up          # builds backend, runs migrations, starts on :5000
 ```
 
 **Run the full test suite (no API keys needed — all external calls are mocked):**
 
 ```bash
-uv run pytest              # 57 tests, ~1 s
+uv run pytest              # 59 tests, ~1 s
 ```
 
 ### Environment variables
@@ -75,7 +76,7 @@ curl -s -X POST http://localhost:5000/api/v1/profiles \
 curl -s --max-time 300 -X POST \
   http://localhost:5000/api/v1/profiles/<profile_uuid>/run
 # → 200  {"run_uuid":"...","status":"completed","queries_discovered":15,
-#          "tokens_used":{"input":...,"output":...}, "queries":[...], "recommendations":[...]}
+#          "tokens_used": 12345, "top_queries":[...], "recommendations":[...]}
 ```
 
 **Run async (returns immediately, poll /runs/<run_uuid>):**
@@ -177,7 +178,7 @@ Search volume and difficulty are **real numbers from a live API**, not LLM estim
 
 **Schema-in-prompt + `parse()` enforcement:** For Agents 1 and 3, the output schema (field names, types, constraints) is spelled out in plain text inside the system prompt and simultaneously enforced via `messages.parse(output_format=MyPydanticModel)`. The API layer cannot return malformed JSON; the prompt keeps the contract human-readable. One retry precedes a typed `AgentError` with the original exception attached.
 
-**The probe prompt is blind:** Agent 2's system prompt (`PROBE_SYSTEM` in `app/agents/scoring.py`) never mentions the target business, the domain, or the competitors. Naming the target would prime the model to include or exclude it — invalidating the visibility simulation. A dedicated test (`test_probe_not_biased`) asserts the prompt string contains neither `profile.domain` nor `profile.name`.
+**The probe prompt is blind:** Agent 2's system prompt (`PROBE_SYSTEM` in `app/agents/scoring.py`) never mentions the target business, the domain, or the competitors. Naming the target would prime the model to include or exclude it — invalidating the visibility simulation. A dedicated test (`test_probe_prompt_never_leaks_target`) asserts the prompt string contains neither `profile.domain` nor `profile.name`.
 
 **Retry layer:** `generate_structured()` in `llm.py` makes two attempts before raising `AgentError`. Per-query `generate_text()` calls in Agent 2 are wrapped in `try/except` inside the `probe()` closure — any exception marks the query `unknown` and the next query proceeds.
 

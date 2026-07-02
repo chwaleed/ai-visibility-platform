@@ -77,7 +77,7 @@ def execute_pipeline(profile_uuid: str, run_uuid: str) -> None:
             (q for q in query_rows if q.domain_visible is False),
             key=lambda q: q.opportunity_score, reverse=True,
         )[:MAX_GAPS_FOR_RECOMMENDATIONS]
-        if not gaps:  # fully visible profile: recommend on lowest-position queries
+        if not gaps:  # fully visible profile: recommend on top-scored queries anyway
             gaps = sorted(query_rows, key=lambda q: q.opportunity_score,
                           reverse=True)[:MAX_GAPS_FOR_RECOMMENDATIONS]
 

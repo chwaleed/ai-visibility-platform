@@ -21,6 +21,7 @@ def _gap(visible: bool | None, position: int | None) -> float:
         return 0.7
     if not visible:
         return 1.0
+    # visible with position=None (possible via manual/legacy data) counts as not-first -> 0.4
     return 0.0 if position == 1 else 0.4
 
 
