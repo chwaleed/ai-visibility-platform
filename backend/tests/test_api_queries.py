@@ -82,6 +82,21 @@ def test_recheck_updates_row(client, monkeypatch):
     assert body["estimated_search_volume"] == 999
 
 
+def test_recheck_orphaned_query_404(client):
+    _seed(client)
+    run = PipelineRun(profile_uuid="ghost-profile", status="completed")
+    db.session.add(run)
+    db.session.commit()
+    orphan = DiscoveredQuery(
+        profile_uuid="ghost-profile", run_uuid=run.uuid, query_text="Q?",
+        keyword="k", intent="commercial")
+    db.session.add(orphan)
+    db.session.commit()
+    res = client.post(f"/api/v1/queries/{orphan.uuid}/recheck")
+    assert res.status_code == 404
+    assert res.get_json()["error"]["code"] == "not_found"
+
+
 def test_recommendations_endpoint(client):
     uuid, run, rows = _seed(client)
     db.session.add(ContentRecommendation(

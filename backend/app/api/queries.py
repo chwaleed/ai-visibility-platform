@@ -47,6 +47,10 @@ def recheck_query(uuid: str) -> tuple[Response, int]:
         return ApiResponse.error("not_found", f"Query {uuid} not found", 404)
 
     profile = db.session.get(BusinessProfile, query.profile_uuid)
+    if profile is None:
+        return ApiResponse.error(
+            "not_found", f"Profile {query.profile_uuid} not found", 404)
+
     scored = VisibilityScoringAgent().score_single(
         profile, query.query_text, query.keyword, query.intent)
 
