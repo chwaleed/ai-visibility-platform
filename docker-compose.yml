@@ -1,0 +1,13 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - backend_db:/app/instance
+    # frontend service added by the frontend implementation plan
+
+volumes:
+  backend_db:
