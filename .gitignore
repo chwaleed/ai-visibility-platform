@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.db
+instance/
+.pytest_cache/
+.env
+
+# Node
+node_modules/
+dist/
+*.local
+
+# OS/IDE
+.DS_Store
+Thumbs.db
+
+# Session scratch (progress ledger, task briefs)
+.superpowers/
