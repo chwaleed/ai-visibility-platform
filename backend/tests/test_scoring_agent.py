@@ -41,6 +41,17 @@ def test_extract_visibility_absent():
     assert visible is False and pos is None
 
 
+def test_brand_variants_has_no_generic_fragments():
+    assert "surfer" not in brand_variants("surferseo.com", None)
+
+
+def test_no_false_positive_on_generic_words():
+    answer = "Great surfers recommend practicing daily near the sea."
+    visible, pos = extract_visibility(
+        answer, brand_variants("surferseo.com", None), [])
+    assert visible is False and pos is None
+
+
 def _profile() -> BusinessProfile:
     return BusinessProfile(name="Frase", domain="frase.io", industry="SEO",
                            description="", competitors=["surferseo.com"])

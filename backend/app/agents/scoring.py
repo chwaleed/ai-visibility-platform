@@ -50,16 +50,14 @@ def brand_variants(domain: str, name: str | None = None) -> list[str]:
     root = domain.lower().split(".")[0]
     if len(root) >= 4:                      # skip too-generic short roots
         variants.add(root)
-        # Split on common suffixes to improve matching
-        if root.endswith("seo"):
-            variants.add(root[:-3])
     if name:
         variants.add(name.lower())
     return sorted(variants)
 
 
-def _first_index(answer_lower: str, variants: list[str]) -> int | None:
-    hits = [answer_lower.find(v) for v in variants if v in answer_lower]
+def _first_index(compact_answer: str, variants: list[str]) -> int | None:
+    """First occurrence of any variant, measured in space-stripped space."""
+    hits = [idx for v in variants if (idx := compact_answer.find(v.replace(" ", ""))) != -1]
     return min(hits) if hits else None
 
 
@@ -67,14 +65,19 @@ def extract_visibility(
     answer: str, target_variants: list[str], competitor_variants: list[list[str]],
 ) -> tuple[bool, int | None]:
     """(visible, position) — position is the target's 1-based rank among all
-    brands mentioned, ordered by first occurrence in the answer."""
-    answer_lower = answer.lower()
-    target_idx = _first_index(answer_lower, target_variants)
+    brands mentioned, ordered by first occurrence in the answer.
+
+    Matching happens in space-stripped lowercase text so an answer writing a
+    brand with spacing ("Surfer SEO") still matches its domain root
+    ("surferseo") — no fragile single-word heuristics needed.
+    """
+    compact = answer.lower().replace(" ", "")
+    target_idx = _first_index(compact, target_variants)
     if target_idx is None:
         return False, None
     competitor_idxs = [
         idx for cv in competitor_variants
-        if (idx := _first_index(answer_lower, cv)) is not None
+        if (idx := _first_index(compact, cv)) is not None
     ]
     position = 1 + sum(1 for idx in competitor_idxs if idx < target_idx)
     return True, position
