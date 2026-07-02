@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **EXECUTION STATUS (audited 2026-07-03):** Tasks 0–10 complete and reviewed (41/41 tests green); authoritative record in `.superpowers/sdd/progress.md`. Remaining: Tasks 11–15. Deviations from this plan as written:
+> 1. **Provider swap (Task 6b, commit `0338494`):** Task 6's DataForSEO client was later replaced by `app/agents/seranking.py::fetch_keyword_metrics()` (SE Ranking, one call for volume+difficulty, live-verified) after DataForSEO's trial proved account-gated. Task 6's text below is historical record — do not re-implement it.
+> 2. **Schema counts (Task 3):** agent-output list constraints are `min_length=1` (not 10–20/3–5); counts live in the prompts.
+> 3. **Brand matching (Task 8, commit `f907269`):** visibility matching happens in space-stripped lowercase text; no suffix-split heuristics.
+> 4. `.env.example` was pulled forward (exists; SE Ranking block) — Task 14 Step 3 is a verify-only step.
+
 **Goal:** Build the complete Task 1 Flask API — 3-agent AI pipeline (discovery → scoring → recommendations), SQLAlchemy persistence, dual-mode execution, DataForSEO integration — per `docs/superpowers/specs/2026-07-03-ai-visibility-platform-design.md`.
 
 **Architecture:** Flask app-factory + 2 blueprints. All LLM calls isolated in `app/agents/llm.py` (Anthropic `messages.parse()` + Pydantic for Agents 1&3; free-text Haiku probes for Agent 2). All HTTP responses constructed by `ApiResponse`. Pipeline orchestrator survives partial failures. SQLite + Flask-Migrate.

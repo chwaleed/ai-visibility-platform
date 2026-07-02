@@ -41,7 +41,8 @@ d:\Assment\
 │   │   ├── agents/
 │   │   │   ├── llm.py             # ALL Anthropic calls: generate_structured(), generate_text(); returns (result, usage)
 │   │   │   ├── discovery.py       # Agent 1
-│   │   │   ├── scoring.py         # Agent 2 (DataForSEO client + visibility probes)
+│   │   │   ├── scoring.py         # Agent 2 (visibility probes + score assembly)
+│   │   │   ├── seranking.py       # keyword data provider (volume+difficulty, one call)
 │   │   │   └── recommendation.py  # Agent 3
 │   │   ├── api/
 │   │   │   ├── profiles.py        # Blueprint: profiles, run, runs, recommendations
@@ -119,11 +120,11 @@ All Anthropic traffic through `agents/llm.py`:
 - `generate_text(system, user, model, max_tokens) -> (str, Usage)`.
 - Token usage accumulated per run → `PipelineRun.tokens_used`.
 
-**Agent 1 — QueryDiscoveryAgent** (Opus 4.8). System prompt: SEO/AEO strategist persona, constraints (commercially relevant, natural-language, mix of intents, 12–18 items), JSON schema spelled out. User template: name/domain/industry/description/competitors substituted. Output schema: `[{question, keyword, intent}]` — `keyword` = short priceable phrase for DataForSEO (long questions have no volume).
+**Agent 1 — QueryDiscoveryAgent** (Opus 4.8). System prompt: SEO/AEO strategist persona, constraints (commercially relevant, natural-language, mix of intents, 12–18 items), JSON schema spelled out. User template: name/domain/industry/description/competitors substituted. Output schema: `[{question, keyword, intent}]` — `keyword` = short priceable search phrase (long questions have no search volume in any provider's DB).
 
-**Agent 2 — VisibilityScoringAgent** (Haiku 4.5 + DataForSEO):
-1. One batched volume call + one batched difficulty call (all keywords).
-2. Per query, in `ThreadPoolExecutor(max_workers=5)`: Haiku answers the raw question naturally (~600 max_tokens, no JSON) → deterministic scan of answer for target domain/brand + competitors (case-insensitive, domain and brand-name variants) → `domain_visible`, `visibility_position` = rank of target among first-mention order of all brands found.
+**Agent 2 — VisibilityScoringAgent** (Haiku 4.5 + SE Ranking):
+1. ONE batched data call (`seranking.py::fetch_keyword_metrics`) returns volume + difficulty for all keywords.
+2. Per query, in `ThreadPoolExecutor(max_workers=5)`: Haiku answers the raw question naturally (~600 max_tokens, no JSON) → deterministic scan of answer for target domain/brand + competitors — matching in **space-stripped lowercase text** so "Surfer SEO" matches root "surferseo" without generic-word fragments → `domain_visible`, `visibility_position` = rank of target among first-mention order of all brands found.
 3. Per-query try/except: any failure → `domain_visible=NULL` (status unknown), volume/difficulty defaults 0/50, run continues (**partial-failure requirement**).
 4. `opportunity_score` from `utils/scoring.py`.
 5. `recheck` reuses the same per-query path.
@@ -147,7 +148,7 @@ Rationale: demand-led weighting; gap and winnability co-equal; intent as tiebrea
 
 - **Logging:** stdlib, correlation ID = run_uuid on all pipeline log lines (bonus).
 - **Rate limiting:** flask-limiter on the run endpoint only (bonus).
-- **Config:** python-dotenv; `.env.example` per brief template + `DATAFORSEO_LOGIN/PASSWORD`, `CORS_ORIGINS`.
+- **Config:** python-dotenv; `.env.example` per brief template + `SERANKING_API_KEY`, `CORS_ORIGINS`.
 - **Tests (pytest, all external calls mocked):** scoring ordering/bounds; agent parse success + malformed→retry→graceful failure; pipeline partial failure (one probe raises → run completes, query marked unknown); one API smoke test (create profile → 201). Runnable without any API keys.
 
 ---
@@ -183,9 +184,9 @@ Rationale: demand-led weighting; gap and winnability co-equal; intent as tiebrea
   - `.dockerignore` in both services (`.venv`, `node_modules`, `*.db`, `dist`).
   - Single `docker-compose up` from cold clone.
 - **Manual path (also in README):** `cd backend && uv sync && uv run flask db upgrade && uv run flask run` · `cd frontend && pnpm install && pnpm dev`.
-- **READMEs:** root (overview, quickstart both ways, env setup incl. DataForSEO trial signup), backend (architecture, agent design rationale, model selection reasoning, score formula, schema justification, tradeoffs, AI-tools disclosure per brief), frontend (stack choices, structure, component notes).
+- **READMEs:** root (overview, quickstart both ways, env setup incl. SE Ranking key signup + provider-swap story), backend (architecture, agent design rationale, model selection reasoning, score formula, schema justification, tradeoffs, AI-tools disclosure per brief), frontend (stack choices, structure, component notes).
 - **Submission:** git repo → GitHub (user pushes; repo not yet initialized — `git init` at implementation start).
-- **User prerequisites:** Anthropic API key; DataForSEO account ($50 trial, no card).
+- **User prerequisites:** Anthropic API key; SE Ranking account + API key (100K free credits, no card).
 
 ## 6. Explicitly skipped (with reasons, also in README)
 
