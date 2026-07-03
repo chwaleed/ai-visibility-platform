@@ -1,3 +1,5 @@
+import axios from "axios"
+import type { AxiosResponse } from "axios"
 import type {
   DiscoveredQuery, Paginated, PipelineRun, Profile, ProfileCreateBody,
   ProfileCreated, ProfileStats, ProfileWithStats, QueryListParams,
@@ -20,19 +22,21 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  let res: Response
+export const http = axios.create({
+  baseURL: BASE,
+  headers: { "Content-Type": "application/json" },
+})
+
+// Success bodies are bare (spec-shaped); errors carry {"error": {code, message}}.
+async function request<T>(call: Promise<AxiosResponse<T>>): Promise<T> {
   try {
-    res = await fetch(`${BASE}${path}`, {
-      headers: { "Content-Type": "application/json" },
-      ...init,
-    })
-  } catch {
-    throw new ApiError("network_error", "Could not reach the API — is the backend running?", 0)
-  }
-  const body: unknown = await res.json().catch(() => null)
-  if (!res.ok) {
-    const err = (body as { error?: { code?: string; message?: string; details?: unknown } })?.error
+    return (await call).data
+  } catch (e: unknown) {
+    const res = (e as { response?: { status: number; data?: unknown } }).response
+    if (!res) {
+      throw new ApiError("network_error", "Could not reach the API — is the backend running?", 0)
+    }
+    const err = (res.data as { error?: { code?: string; message?: string; details?: unknown } })?.error
     throw new ApiError(
       err?.code ?? "unknown_error",
       err?.message ?? `Request failed (${res.status})`,
@@ -40,7 +44,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       err?.details,
     )
   }
-  return body as T
 }
 
 function qs(params: Record<string, string | number | undefined>): string {
@@ -54,18 +57,18 @@ function buildQueryString(params: QueryListParams): string {
 }
 
 export const api = {
-  listProfiles: () => request<{ items: ProfileWithStats[] }>("/profiles"),
-  getProfile: (uuid: string) => request<Profile & ProfileStats>(`/profiles/${uuid}`),
+  listProfiles: () => request(http.get<{ items: ProfileWithStats[] }>("/profiles")),
+  getProfile: (uuid: string) => request(http.get<Profile & ProfileStats>(`/profiles/${uuid}`)),
   createProfile: (body: ProfileCreateBody) =>
-    request<ProfileCreated>("/profiles", { method: "POST", body: JSON.stringify(body) }),
+    request(http.post<ProfileCreated>("/profiles", body)),
   runPipelineAsync: (uuid: string) =>
-    request<RunAccepted>(`/profiles/${uuid}/run?async=1`, { method: "POST" }),
-  getRun: (runUuid: string) => request<RunPayload>(`/runs/${runUuid}`),
-  listRuns: (uuid: string) => request<{ items: PipelineRun[] }>(`/profiles/${uuid}/runs`),
+    request(http.post<RunAccepted>(`/profiles/${uuid}/run?async=1`)),
+  getRun: (runUuid: string) => request(http.get<RunPayload>(`/runs/${runUuid}`)),
+  listRuns: (uuid: string) => request(http.get<{ items: PipelineRun[] }>(`/profiles/${uuid}/runs`)),
   listQueries: (uuid: string, params: QueryListParams = {}) =>
-    request<Paginated<DiscoveredQuery>>(`/profiles/${uuid}/queries${buildQueryString(params)}`),
+    request(http.get<Paginated<DiscoveredQuery>>(`/profiles/${uuid}/queries${buildQueryString(params)}`)),
   recheckQuery: (queryUuid: string) =>
-    request<DiscoveredQuery>(`/queries/${queryUuid}/recheck`, { method: "POST" }),
+    request(http.post<DiscoveredQuery>(`/queries/${queryUuid}/recheck`)),
   listRecommendations: (uuid: string) =>
-    request<{ items: Recommendation[] }>(`/profiles/${uuid}/recommendations`),
+    request(http.get<{ items: Recommendation[] }>(`/profiles/${uuid}/recommendations`)),
 }
