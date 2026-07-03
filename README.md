@@ -95,6 +95,29 @@ uv run pytest
 | `CORS_ORIGINS` | Comma-separated allowed frontend origins |
 | `RATELIMIT_ENABLED` | `true`/`false` (tests disable it) |
 
+## Frontend setup
+
+```bash
+cd frontend
+pnpm install
+cp .env.example .env         # VITE_API_BASE_URL, defaults to http://localhost:5000
+pnpm dev                     # http://localhost:5173
+```
+
+See [`frontend/README.md`](frontend/README.md) for the architecture (single axios boundary,
+Query for server state / Zustand for UI state, four-state views, token-only theming).
+
+## Full stack via Docker
+
+```bash
+cp backend/.env.example backend/.env    # fill in keys (optional — pipeline degrades without them)
+docker compose up --build
+```
+
+API on http://localhost:5000, dashboard on http://localhost:3000. `VITE_API_BASE_URL` is a
+**build ARG** (Vite bakes env at build time) — set it in `docker-compose.yml` under the frontend
+service, not as a runtime env var.
+
 ## Repository layout
 
 ```
@@ -105,7 +128,10 @@ backend/            Flask API — app factory, blueprints, agents, orchestrator
   app/utils/        responses.py (ApiResponse) · scoring.py (opportunity formula)
   app/models/       4 SQLAlchemy models, UUID PKs, Alembic migrations
   tests/            59 tests, all external calls mocked
-frontend/           React + TypeScript dashboard (pending)
+frontend/           React + TypeScript dashboard (Vite, shadcn/ui, TanStack Query, Zustand)
+  src/services/     api.ts — the single network boundary (axios + ApiError envelope)
+  src/hooks/        one hook per resource + usePipeline (trigger + poll)
+  src/pages/        Dashboard · CreateProfile · ProfileDetail (Overview/Queries/Recs/Runs tabs)
 docs/               assessment brief · design spec · implementation plans
 ```
 

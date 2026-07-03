@@ -7,7 +7,16 @@ services:
       - ./backend/.env
     volumes:
       - backend_db:/app/instance
-    # frontend service added by the frontend implementation plan
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:5000
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
 
 volumes:
   backend_db:
