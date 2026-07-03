@@ -2,13 +2,14 @@ import { Loader2, Play } from "lucide-react"
 import { useParams } from "react-router"
 import { PipelineStatus } from "@/components/PipelineStatus"
 import { StatusBadge } from "@/components/StatusBadge"
-import { EmptyState } from "@/components/states/EmptyState"
 import { ErrorState } from "@/components/states/ErrorState"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { OverviewTab } from "@/pages/tabs/OverviewTab"
 import { QueriesTab } from "@/pages/tabs/QueriesTab"
 import { RecommendationsTab } from "@/pages/tabs/RecommendationsTab"
+import { RunsTab } from "@/pages/tabs/RunsTab"
 import { useProfile } from "@/hooks/useProfile"
 import { usePipeline } from "@/hooks/usePipeline"
 
@@ -75,7 +76,7 @@ export default function ProfileDetail() {
           <TabsTrigger value="runs">Runs</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-4">
-          <EmptyState title="Charts land in Task 10" />
+          <OverviewTab profileUuid={uuid} />
         </TabsContent>
         <TabsContent value="queries" className="mt-4">
           <QueriesTab profileUuid={uuid} />
@@ -84,7 +85,7 @@ export default function ProfileDetail() {
           <RecommendationsTab profileUuid={uuid} />
         </TabsContent>
         <TabsContent value="runs" className="mt-4">
-          <EmptyState title="Run history lands in Task 9" />
+          <RunsTab profileUuid={uuid} />
         </TabsContent>
       </Tabs>
     </div>
