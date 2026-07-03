@@ -7,6 +7,8 @@ import { ErrorState } from "@/components/states/ErrorState"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { QueriesTab } from "@/pages/tabs/QueriesTab"
+import { RecommendationsTab } from "@/pages/tabs/RecommendationsTab"
 import { useProfile } from "@/hooks/useProfile"
 import { usePipeline } from "@/hooks/usePipeline"
 
@@ -76,10 +78,10 @@ export default function ProfileDetail() {
           <EmptyState title="Charts land in Task 10" />
         </TabsContent>
         <TabsContent value="queries" className="mt-4">
-          <EmptyState title="Queries table lands in Task 7" />
+          <QueriesTab profileUuid={uuid} />
         </TabsContent>
         <TabsContent value="recommendations" className="mt-4">
-          <EmptyState title="Recommendations land in Task 8" />
+          <RecommendationsTab profileUuid={uuid} />
         </TabsContent>
         <TabsContent value="runs" className="mt-4">
           <EmptyState title="Run history lands in Task 9" />
