@@ -15,8 +15,11 @@ export function QueriesTab({ profileUuid }: { profileUuid: string }) {
 
   const listQuery = useQueriesList(profileUuid)
   const { recheck, checkingIds } = useRecheck(profileUuid)
-  const hasActiveFilters =
-    useQueryFilters(s => s.minScore) > 0 || !!useQueryFilters(s => s.status)
+  // Call both selectors unconditionally — a `||` between two hook calls would
+  // short-circuit the second one and change the hook count (React error #300).
+  const minScore = useQueryFilters(s => s.minScore)
+  const status = useQueryFilters(s => s.status)
+  const hasActiveFilters = minScore > 0 || !!status
 
   return (
     <div className="space-y-4">
