@@ -9,6 +9,24 @@ from app.models import BusinessProfile
 from app.schemas.agent_outputs import DiscoveredQueryItem
 
 
+def _profile_frase():
+    return BusinessProfile(name="Frase", domain="frase.io", industry="SEO",
+                           description="", competitors=[])
+
+
+def test_mixed_case_keyword_uses_real_metrics(app, monkeypatch):
+    # Agent 1 emits "Surfer SEO"; SE Ranking returns it lowercased. The scoring
+    # lookup must still find the real volume/difficulty, not fall to defaults.
+    monkeypatch.setattr(scoring, "fetch_keyword_metrics",
+                        lambda kws: ({"surfer seo": 6600}, {"surfer seo": 67}))
+    monkeypatch.setattr(scoring, "generate_text",
+                        lambda system, user, **kw: ("Some answer.", Usage(1, 1)))
+    item = DiscoveredQueryItem(question="Q?", keyword="Surfer SEO", intent="commercial")
+    scored, _ = VisibilityScoringAgent().score_all(_profile_frase(), [item])
+    assert scored[0].volume == 6600
+    assert scored[0].difficulty == 67
+
+
 def test_brand_variants():
     v = brand_variants("surferseo.com", "Surfer SEO")
     assert "surferseo.com" in v and "surferseo" in v and "surfer seo" in v

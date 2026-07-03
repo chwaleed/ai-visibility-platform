@@ -27,6 +27,13 @@ def _api_key() -> str:
     return os.environ.get("SERANKING_API_KEY", "")
 
 
+def normalize_keyword(kw: str) -> str:
+    """Canonical form for keyed lookups. SE Ranking echoes keywords lowercased,
+    but Agent 1 emits them with capitals (acronyms, brand names) — normalize both
+    the stored keys and the caller's lookups through here so they still match."""
+    return kw.strip().lower()
+
+
 def fetch_keyword_metrics(
     keywords: list[str],
 ) -> tuple[dict[str, int], dict[str, int]]:
@@ -54,8 +61,9 @@ def fetch_keyword_metrics(
             kw = (item or {}).get("keyword")
             if not kw:
                 continue
-            volumes[kw] = int(item.get("volume") or 0)
-            difficulties[kw] = int(item.get("difficulty") or DEFAULT_DIFFICULTY)
+            norm = normalize_keyword(kw)
+            volumes[norm] = int(item.get("volume") or 0)
+            difficulties[norm] = int(item.get("difficulty") or DEFAULT_DIFFICULTY)
         return volumes, difficulties
     except Exception as e:  # noqa: BLE001 — any failure degrades gracefully
         logger.warning("SE Ranking call failed: %s", e)

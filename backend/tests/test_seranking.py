@@ -50,6 +50,19 @@ def test_fetch_keyword_metrics_happy_path(monkeypatch):
                                              "frase vs surfer seo", "no data kw"]}
 
 
+def test_keys_normalized_so_mixed_case_lookups_hit(monkeypatch):
+    # SE Ranking lowercases keywords in its response; a caller looking up the
+    # original mixed-case keyword must still find the data (not fall to defaults).
+    monkeypatch.setattr(seranking, "_api_key", lambda: "test-key")
+    payload = [{"is_data_found": True, "keyword": "surfer seo", "volume": 6600, "difficulty": 67}]
+    monkeypatch.setattr(seranking.requests, "post", lambda *a, **k: _Resp(payload))
+
+    volumes, difficulties = seranking.fetch_keyword_metrics(["Surfer SEO"])
+    assert volumes == {"surfer seo": 6600}
+    assert volumes[seranking.normalize_keyword("Surfer SEO")] == 6600
+    assert difficulties[seranking.normalize_keyword("Surfer SEO")] == 67
+
+
 def test_http_failure_returns_empty(monkeypatch):
     monkeypatch.setattr(seranking, "_api_key", lambda: "test-key")
     monkeypatch.setattr(seranking.requests, "post", lambda *a, **k: _Resp({}, 500))

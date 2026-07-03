@@ -14,7 +14,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
-from app.agents.seranking import fetch_keyword_metrics
+from app.agents.seranking import fetch_keyword_metrics, normalize_keyword
 from app.agents.llm import PROBE_MODEL, Usage, generate_text
 from app.agents.prompts import SCORING_PROBE_SYSTEM
 from app.models import BusinessProfile
@@ -103,8 +103,9 @@ class VisibilityScoringAgent:
                 logger.warning("visibility probe failed for %r: %s", item.question, e)
                 visible, position = None, None
 
-            volume = volumes.get(item.keyword, DEFAULT_VOLUME)
-            difficulty = difficulties.get(item.keyword, DEFAULT_DIFFICULTY)
+            kw = normalize_keyword(item.keyword)
+            volume = volumes.get(kw, DEFAULT_VOLUME)
+            difficulty = difficulties.get(kw, DEFAULT_DIFFICULTY)
             return ScoredQuery(
                 question=item.question, keyword=item.keyword, intent=item.intent,
                 volume=volume, difficulty=difficulty,
