@@ -1,3 +1,5 @@
+import logging
+
 from app.agents.llm import AgentError, Usage
 from app.agents.scoring import ScoredQuery
 from app.extensions import db
@@ -92,14 +94,34 @@ def test_agent3_failure_still_completes_run(app, monkeypatch):
     assert ContentRecommendation.query.count() == 0
 
 
-def test_agent1_failure_fails_run(app, monkeypatch):
+def test_agent1_failure_fails_run(app, monkeypatch, caplog):
     monkeypatch.setattr(pipeline.QueryDiscoveryAgent, "discover",
                         lambda self, prof: (_ for _ in ()).throw(AgentError("boom")))
+    p = _profile()
+    run = start_run(p.uuid)
+    with caplog.at_level(logging.ERROR):
+        execute_pipeline(p.uuid, run.uuid)
+
+    db.session.refresh(run)
+    assert run.status == "failed"
+    assert "boom" not in (run.error_message or "")     # raw detail never reaches the UI
+    assert "try again" in run.error_message.lower()     # user sees a friendly message
+    assert "boom" in caplog.text                         # raw detail still captured in logs
+    assert DiscoveredQuery.query.count() == 0
+
+
+def test_auth_failure_shows_config_message(app, monkeypatch):
+    monkeypatch.setattr(
+        pipeline.QueryDiscoveryAgent, "discover",
+        lambda self, prof: (_ for _ in ()).throw(
+            AgentError("LLM structured call failed: Could not resolve authentication method. "
+                       "Expected one of api_key, auth_token, or credentials")),
+    )
     p = _profile()
     run = start_run(p.uuid)
     execute_pipeline(p.uuid, run.uuid)
 
     db.session.refresh(run)
     assert run.status == "failed"
-    assert "boom" in run.error_message
-    assert DiscoveredQuery.query.count() == 0
+    assert "api key" in run.error_message.lower()        # actionable, non-technical
+    assert "api_key" not in run.error_message            # no raw SDK token names

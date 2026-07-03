@@ -24,6 +24,16 @@ from app.models import (
 MAX_GAPS_FOR_RECOMMENDATIONS = 5
 
 
+def _user_message(exc: Exception) -> str:
+    """Friendly, non-technical text for the UI. The raw detail stays in the logs."""
+    detail = str(exc).lower()
+    if any(s in detail for s in ("api_key", "x-api-key", "authentication", "auth_token", "credentials")):
+        return "The AI service is not configured correctly — an API key is missing or invalid."
+    if isinstance(exc, AgentError):
+        return "The AI service is temporarily unavailable. Please try again in a moment."
+    return "Something went wrong while running the pipeline. Please try again."
+
+
 class _RunLogger(logging.LoggerAdapter):
     """Correlation-ID logging: every pipeline line carries its run uuid."""
 
@@ -101,7 +111,7 @@ def execute_pipeline(profile_uuid: str, run_uuid: str) -> None:
             log.info("agent 3: %d recommendations", len(recs))
         except AgentError as e:
             log.warning("agent 3 failed, completing run without recommendations: %s", e)
-            run.error_message = f"recommendations unavailable: {e}"
+            run.error_message = "Recommendations couldn't be generated for this run."
 
         run.status = "completed"
         profile.status = "analyzed"
@@ -110,7 +120,7 @@ def execute_pipeline(profile_uuid: str, run_uuid: str) -> None:
         db.session.rollback()
         run = db.session.get(PipelineRun, run_uuid)
         run.status = "failed"
-        run.error_message = str(e)
+        run.error_message = _user_message(e)
     finally:
         run.tokens_used = total.total
         run.completed_at = datetime.now(timezone.utc)
