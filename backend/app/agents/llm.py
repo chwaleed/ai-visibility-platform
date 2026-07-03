@@ -14,8 +14,8 @@ from pydantic import BaseModel
 
 logger = logging.getLogger("agents.llm")
 
-GENERATION_MODEL = "claude-opus-4-8"   # Agents 1 & 3: quality generation
-PROBE_MODEL = "claude-haiku-4-5"       # Agent 2: fast/cheap visibility probes
+GENERATION_MODEL = "claude-sonnet-4-6"  # Agents 1 & 3: generation (quality/cost balance)
+PROBE_MODEL = "claude-haiku-4-5"        # Agent 2: fast/cheap visibility probes
 
 T = TypeVar("T", bound=BaseModel)
 

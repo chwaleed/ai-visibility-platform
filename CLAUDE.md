@@ -11,7 +11,7 @@ Graded constraint: **simplicity beats over-engineering** — no new deps, layers
 
 ## Backend rules
 - Every response goes through `app/utils/responses.py::ApiResponse` (`ok/created/paginated/error`) — never hand-build a response. Success bodies bare (spec-shaped); errors `{"error": {"code", "message"}}`.
-- All Anthropic calls live in `app/agents/llm.py` only — agents/pipeline never import the SDK. Models: `claude-opus-4-8` (Agents 1 & 3, `messages.parse()` + Pydantic), `claude-haiku-4-5` (Agent 2 visibility probes, free text).
+- All Anthropic calls live in `app/agents/llm.py` only — agents/pipeline never import the SDK. Models: `claude-sonnet-4-6` (Agents 1 & 3, `messages.parse()` + Pydantic), `claude-haiku-4-5` (Agent 2 visibility probes, free text).
 - Pipeline survives partial failures: per-query try/except → visibility `unknown`, run continues.
 - Opportunity score is a pure function in `app/utils/scoring.py` — keep it unit-testable.
 - Python type hints everywhere. Tests mock all external calls (must pass with no API keys).

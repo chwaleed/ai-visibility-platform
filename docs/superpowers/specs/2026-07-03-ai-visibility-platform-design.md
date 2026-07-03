@@ -13,7 +13,7 @@
 | Backend | Flask + SQLAlchemy + **SQLite** + Flask-Migrate | Brief-mandated except DB; SQLite = zero cold-start risk |
 | Python tooling | **uv** (pyproject.toml) | User choice |
 | LLM provider | **Anthropic only**, centralized in `app/agents/llm.py` | No provider interface for one provider; swap = rewrite one ~40-line file. Documented in README |
-| Models | **Opus 4.8** (`claude-opus-4-8`) for Agents 1 & 3; **Haiku 4.5** (`claude-haiku-4-5`) for Agent 2 visibility probes | Quality where generation matters; speed/cost for 15–20 parallel simple probes. "Deliberate model selection" README criterion |
+| Models | **Sonnet 4.6** (`claude-sonnet-4-6`) for Agents 1 & 3; **Haiku 4.5** (`claude-haiku-4-5`) for Agent 2 visibility probes | Quality generation without Opus-level cost; speed/cost for 15–20 parallel simple probes. "Deliberate model selection" README criterion |
 | Structured output | `client.messages.parse()` + Pydantic models (Agents 1 & 3); free-text `messages.create()` for Agent 2 probes | Schema-enforced JSON at API level + prompt-level schema + fallback = full marks path on prompt engineering |
 | Real data | **SE Ranking Keyword Research API** — `POST /v1/keywords/export?source=us` (`Authorization: Token`), ONE batched call per run returns `volume` + `difficulty` (0–100) per keyword. Live-verified 2026-07-03 | Brief names "DataForSEO etc." — DataForSEO's trial proved account-gated (40104 verification wall / 40201 pause), so we exercised the provider seam: swap touched one module. 100K free credits ≈ 1,000 runs, no card. Full story in README |
 | Pipeline execution | **Dual-mode**: default sync (spec-exact response); `?async=1` → 202 + `run_uuid`, `threading.Thread`, poll `GET /api/v1/runs/{run_uuid}` | Spec-verbatim for reviewers + async bonus + powers frontend live status. No Celery |
@@ -120,7 +120,7 @@ All Anthropic traffic through `agents/llm.py`:
 - `generate_text(system, user, model, max_tokens) -> (str, Usage)`.
 - Token usage accumulated per run → `PipelineRun.tokens_used`.
 
-**Agent 1 — QueryDiscoveryAgent** (Opus 4.8). System prompt: SEO/AEO strategist persona, constraints (commercially relevant, natural-language, mix of intents, 12–18 items), JSON schema spelled out. User template: name/domain/industry/description/competitors substituted. Output schema: `[{question, keyword, intent}]` — `keyword` = short priceable search phrase (long questions have no search volume in any provider's DB).
+**Agent 1 — QueryDiscoveryAgent** (Sonnet 4.6). System prompt: SEO/AEO strategist persona, constraints (commercially relevant, natural-language, mix of intents, 12–18 items), JSON schema spelled out. User template: name/domain/industry/description/competitors substituted. Output schema: `[{question, keyword, intent}]` — `keyword` = short priceable search phrase (long questions have no search volume in any provider's DB).
 
 **Agent 2 — VisibilityScoringAgent** (Haiku 4.5 + SE Ranking):
 1. ONE batched data call (`seranking.py::fetch_keyword_metrics`) returns volume + difficulty for all keywords.
@@ -129,7 +129,7 @@ All Anthropic traffic through `agents/llm.py`:
 4. `opportunity_score` from `utils/scoring.py`.
 5. `recheck` reuses the same per-query path.
 
-**Agent 3 — ContentRecommendationAgent** (Opus 4.8). Input: top ≤5 gap queries (highest score where not visible; fallback to lowest-visibility if all visible). Output schema: `[{target_query_uuid, content_type(enum: blog_post|landing_page|faq|comparison_page|guide), title, rationale, target_keywords, priority(enum)}]`. Prompt states persona, grounding rules (only provided queries, reference the gap), schema.
+**Agent 3 — ContentRecommendationAgent** (Sonnet 4.6). Input: top ≤5 gap queries (highest score where not visible; fallback to lowest-visibility if all visible). Output schema: `[{target_query_uuid, content_type(enum: blog_post|landing_page|faq|comparison_page|guide), title, rationale, target_keywords, priority(enum)}]`. Prompt states persona, grounding rules (only provided queries, reference the gap), schema.
 
 ### 3.4 Opportunity score (README-documented)
 

@@ -13,7 +13,7 @@ Business Profile ("Frase", frase.io, competitors: [surferseo.com, ...])
       │
       ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│ AGENT 1 · Query Discovery              claude-opus-4-8           │
+│ AGENT 1 · Query Discovery              claude-sonnet-4-6         │
 │ Generates 12–18 realistic questions users ask AI assistants in   │
 │ this space, each with a priceable seed keyword + intent label.   │
 └──────────────────────────────┬───────────────────────────────────┘
@@ -29,7 +29,7 @@ Business Profile ("Frase", frase.io, competitors: [surferseo.com, ...])
 └──────────────────────────────┬───────────────────────────────────┘
                                ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│ AGENT 3 · Content Recommendations      claude-opus-4-8           │
+│ AGENT 3 · Content Recommendations      claude-sonnet-4-6         │
 │ Top ≤5 queries where the domain is ABSENT → 3–5 concrete         │
 │ content pieces (type, title, rationale, keywords, priority).     │
 └──────────────────────────────┬───────────────────────────────────┘
@@ -41,7 +41,7 @@ Business Profile ("Frase", frase.io, competitors: [surferseo.com, ...])
 
 - **All LLM traffic through one module** (`app/agents/llm.py`). Agents never import the SDK. Swapping providers = rewriting one ~80-line file. We deliberately did **not** build a provider interface for a single provider.
 - **Structured outputs, belt and braces:** `messages.parse()` enforces the schema at the API layer, the same schema is spelled out inside each prompt, Pydantic validates, and one retry precedes a typed `AgentError`. The pipeline cannot crash on malformed LLM output.
-- **Deliberate model split:** Opus 4.8 where generation quality is the product (Agents 1 & 3); Haiku 4.5 for Agent 2's 12–18 parallel visibility probes, where speed/cost matter and the task is "answer like a consumer chatbot."
+- **Deliberate model split:** Sonnet 4.6 for generation (Agents 1 & 3) — strong structured output at a fraction of Opus's cost; Haiku 4.5 for Agent 2's 12–18 parallel visibility probes, where speed/cost matter and the task is "answer like a consumer chatbot."
 - **The probe is blind.** Agent 2's prompt never mentions the target business — naming it would bias the very visibility check we're simulating. A dedicated test enforces this.
 - **Brand matching in space-stripped text:** "Surfer SEO" in an answer matches domain root `surferseo` without fragile heuristics — and a surfing article does *not* count as a brand mention (tested).
 - **Partial-failure policy** (assessment requirement): Agent 1 fails → run fails (nothing to score). One query's probe fails → that query is `unknown`, the run continues. Agent 3 fails → run completes without recommendations, error recorded.

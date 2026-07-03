@@ -2,7 +2,7 @@
 
 ## 1. What this is
 
-A 3-agent Flask API that answers: "Does AI mention your business when customers ask it questions in your space?" A business profile triggers a pipeline: Agent 1 (claude-opus-4-8) generates 12–18 realistic questions people ask AI assistants in that competitive space; Agent 2 (claude-haiku-4-5) pulls real search volume + difficulty via SE Ranking, then probes each question with Haiku acting as a natural consumer chatbot and checks deterministically whether the domain appears; Agent 3 (claude-opus-4-8) reads the worst gaps and produces 3–5 concrete content pieces to close them. Results persist in SQLite; every query gets an opportunity score ranking the best moments to invest content effort.
+A 3-agent Flask API that answers: "Does AI mention your business when customers ask it questions in your space?" A business profile triggers a pipeline: Agent 1 (claude-sonnet-4-6) generates 12–18 realistic questions people ask AI assistants in that competitive space; Agent 2 (claude-haiku-4-5) pulls real search volume + difficulty via SE Ranking, then probes each question with Haiku acting as a natural consumer chatbot and checks deterministically whether the domain appears; Agent 3 (claude-sonnet-4-6) reads the worst gaps and produces 3–5 concrete content pieces to close them. Results persist in SQLite; every query gets an opportunity score ranking the best moments to invest content effort.
 
 ---
 
@@ -121,9 +121,9 @@ curl -s "http://localhost:5000/api/v1/profiles/<uuid>/queries?min_score=0.5&stat
 
 | Agent | Model | Why |
 |---|---|---|
-| Agent 1 — Query Discovery | `claude-opus-4-8` | Generation quality is the product. Poor queries cascade into worthless scores. |
+| Agent 1 — Query Discovery | `claude-sonnet-4-6` | Generation quality is the product. Poor queries cascade into worthless scores — Sonnet delivers it without Opus-level cost. |
 | Agent 2 — Visibility probes | `claude-haiku-4-5` | 12–18 parallel calls; Haiku answers like a real consumer chatbot. Speed and cost matter; the task is "answer naturally," not "reason carefully." |
-| Agent 3 — Recommendations | `claude-opus-4-8` | Content strategy requires contextual reasoning. A cheap model produces generic titles. |
+| Agent 3 — Recommendations | `claude-sonnet-4-6` | Content strategy requires contextual reasoning. A cheap model produces generic titles. |
 
 **Provider portability.** Agents never import the Anthropic SDK. Every LLM call routes through two functions in `app/agents/llm.py`: `generate_structured()` (schema-enforced via `messages.parse()`) and `generate_text()` (free-text probes). Swapping providers means reimplementing that one ~90-line file.
 
