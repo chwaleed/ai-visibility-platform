@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 from app.agents.seranking import fetch_keyword_metrics
 from app.agents.llm import PROBE_MODEL, Usage, generate_text
+from app.agents.prompts import SCORING_PROBE_SYSTEM
 from app.models import BusinessProfile
 from app.schemas.agent_outputs import DiscoveredQueryItem
 from app.utils.scoring import compute_opportunity_score
@@ -25,11 +26,6 @@ logger = logging.getLogger("agents.scoring")
 MAX_PROBE_WORKERS = 5
 DEFAULT_VOLUME = 0
 DEFAULT_DIFFICULTY = 50
-
-PROBE_SYSTEM = """You are a knowledgeable assistant helping a user choose products \
-and services. Answer the user's question directly and naturally, exactly as you \
-would in a normal chat. Recommend and NAME specific tools, companies, or products \
-where relevant. Be concise: under 150 words."""
 
 
 @dataclass
@@ -100,7 +96,7 @@ class VisibilityScoringAgent:
             position: int | None
             probe_usage = Usage()
             try:
-                answer, probe_usage = generate_text(PROBE_SYSTEM, item.question,
+                answer, probe_usage = generate_text(SCORING_PROBE_SYSTEM, item.question,
                                                     model=PROBE_MODEL)
                 visible, position = extract_visibility(answer, target, competitors)
             except Exception as e:  # noqa: BLE001 — isolate per-query failures
