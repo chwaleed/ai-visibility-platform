@@ -9,7 +9,7 @@ describe("state components", () => {
     const onRetry = vi.fn()
     render(<ErrorState message="Boom" onRetry={onRetry} />)
     expect(screen.getByText("Boom")).toBeInTheDocument()
-    await userEvent.click(screen.getByRole("button", { name: /try again/i }))
+    await userEvent.click(screen.getByRole("button", { name: /retry/i }))
     expect(onRetry).toHaveBeenCalledOnce()
   })
   it("EmptyState renders title and action", () => {

@@ -1,28 +1,49 @@
-import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
-const STYLES: Record<string, string> = {
-  visible: "bg-success/15 text-success border-success/30",
-  not_visible: "bg-destructive/15 text-destructive border-destructive/30",
-  unknown: "bg-muted text-muted-foreground border-border",
-  completed: "bg-success/15 text-success border-success/30",
-  failed: "bg-destructive/15 text-destructive border-destructive/30",
-  running: "bg-warning/15 text-warning border-warning/30 animate-pulse",
-  pending: "bg-muted text-muted-foreground border-border",
-  created: "bg-muted text-muted-foreground border-border",
-  analyzed: "bg-success/15 text-success border-success/30",
+export type Tone = "success" | "danger" | "warning" | "neutral" | "primary"
+
+const TONES: Record<Tone, string> = {
+  success: "bg-success-soft text-success",
+  danger: "bg-danger-soft text-danger",
+  warning: "bg-warning-soft text-warning",
+  neutral: "bg-muted text-muted-foreground",
+  primary: "bg-accent text-accent-foreground",
 }
 
-const LABELS: Record<string, string> = {
-  visible: "Visible",
-  not_visible: "Not visible",
-  unknown: "Unknown",
+/** Design pill: 11px / 500, rounded-full, soft-tinted background. */
+export function Pill({
+  tone = "neutral", className, children,
+}: { tone?: Tone; className?: string; children: React.ReactNode }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium whitespace-nowrap",
+        TONES[tone],
+        className,
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
+const STATUS_TONE: Record<string, Tone> = {
+  visible: "success", completed: "success", analyzed: "success",
+  not_visible: "danger", failed: "danger",
+  running: "warning",
+  unknown: "neutral", created: "neutral", pending: "neutral",
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  visible: "Visible", not_visible: "Not visible", unknown: "Unknown",
+  completed: "Completed", failed: "Failed", running: "Running",
+  pending: "Pending", analyzed: "Analyzed", created: "Not run",
 }
 
 export function StatusBadge({ status }: { status: string }) {
   return (
-    <Badge variant="outline" className={cn("capitalize", STYLES[status] ?? STYLES.unknown)}>
-      {LABELS[status] ?? status}
-    </Badge>
+    <Pill tone={STATUS_TONE[status] ?? "neutral"}>
+      {STATUS_LABEL[status] ?? status}
+    </Pill>
   )
 }

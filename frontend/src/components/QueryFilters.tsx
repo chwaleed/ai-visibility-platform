@@ -11,11 +11,11 @@ const ALL = "all"
 export function QueryFilters() {
   const { minScore, status, setMinScore, setStatus } = useQueryFilters()
   return (
-    <div className="flex flex-wrap items-end gap-6 rounded-lg border border-border bg-card p-4">
-      <div className="w-56 space-y-2">
-        <Label className="flex justify-between text-xs">
-          <span>Min opportunity score</span>
-          <span className="tabular-nums text-muted-foreground">{minScore.toFixed(2)}</span>
+    <div className="flex flex-wrap items-end gap-6 rounded-[14px] border border-border bg-card px-[18px] py-4">
+      <div className="w-[230px] space-y-2.5">
+        <Label className="flex justify-between text-[11.5px]">
+          <span className="text-muted-foreground">Min opportunity score</span>
+          <span className="tabular-nums text-secondary-foreground">{minScore.toFixed(2)}</span>
         </Label>
         <Slider
           value={[minScore]}
@@ -25,8 +25,8 @@ export function QueryFilters() {
           onValueChange={v => setMinScore(Array.isArray(v) ? v[0] : v)}
         />
       </div>
-      <div className="space-y-2">
-        <Label className="text-xs">Visibility</Label>
+      <div className="space-y-2.5">
+        <Label className="text-[11.5px] text-muted-foreground">Visibility</Label>
         <Select
           value={status ?? ALL}
           onValueChange={v => setStatus(v === ALL ? undefined : (v as VisibilityStatus))}

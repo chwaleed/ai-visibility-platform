@@ -1,7 +1,4 @@
 import { StatusBadge } from "@/components/StatusBadge"
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table"
 import type { PipelineRun } from "@/types"
 
 function duration(run: PipelineRun): string {
@@ -10,42 +7,46 @@ function duration(run: PipelineRun): string {
   return `${Math.max(Math.round(ms / 1000), 0)}s`
 }
 
+const TH = "px-3 py-2.5 font-medium"
+
 export function RunsTable({ runs }: { runs: PipelineRun[] }) {
   return (
-    <div className="rounded-lg border border-border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Started</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Discovered</TableHead>
-            <TableHead className="text-right">Scored</TableHead>
-            <TableHead className="text-right">Tokens</TableHead>
-            <TableHead className="text-right">Duration</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+    <div className="overflow-x-auto rounded-2xl border border-border bg-card p-1.5">
+      <table className="w-full min-w-[560px] border-collapse text-[12.5px]">
+        <thead>
+          <tr className="text-left text-muted-foreground/90">
+            <th className={TH}>Started</th>
+            <th className={TH}>Status</th>
+            <th className={`${TH} text-right`}>Discovered</th>
+            <th className={`${TH} text-right`}>Scored</th>
+            <th className={`${TH} text-right`}>Tokens</th>
+            <th className={`${TH} text-right`}>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
           {runs.map(run => (
-            <TableRow key={run.run_uuid}>
-              <TableCell>{new Date(run.started_at).toLocaleString()}</TableCell>
-              <TableCell>
+            <tr key={run.run_uuid} className="border-t border-muted">
+              <td className="px-3 py-3.5 text-secondary-foreground">
+                {new Date(run.started_at).toLocaleString()}
+              </td>
+              <td className="px-3 py-3.5">
                 <div className="flex items-center gap-2">
                   <StatusBadge status={run.status} />
                   {run.error_message && (
-                    <span className="max-w-56 truncate text-xs text-muted-foreground" title={run.error_message}>
+                    <span className="max-w-56 truncate text-[11px] text-muted-foreground" title={run.error_message}>
                       {run.error_message}
                     </span>
                   )}
                 </div>
-              </TableCell>
-              <TableCell className="text-right tabular-nums">{run.queries_discovered}</TableCell>
-              <TableCell className="text-right tabular-nums">{run.queries_scored}</TableCell>
-              <TableCell className="text-right tabular-nums">{run.tokens_used.toLocaleString()}</TableCell>
-              <TableCell className="text-right tabular-nums">{duration(run)}</TableCell>
-            </TableRow>
+              </td>
+              <td className="px-3 py-3.5 text-right tabular-nums text-secondary-foreground">{run.queries_discovered}</td>
+              <td className="px-3 py-3.5 text-right tabular-nums text-secondary-foreground">{run.queries_scored}</td>
+              <td className="px-3 py-3.5 text-right tabular-nums text-muted-foreground">{run.tokens_used.toLocaleString()}</td>
+              <td className="px-3 py-3.5 text-right tabular-nums text-muted-foreground">{duration(run)}</td>
+            </tr>
           ))}
-        </TableBody>
-      </Table>
+        </tbody>
+      </table>
     </div>
   )
 }

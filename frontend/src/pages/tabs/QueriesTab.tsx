@@ -39,14 +39,14 @@ export function QueriesTab({ profileUuid }: { profileUuid: string }) {
         />
       )}
       {listQuery.data && listQuery.data.items.length > 0 && (
-        <>
+        <div className="rounded-2xl border border-border bg-card p-1.5">
           <QueryTable
             queries={listQuery.data.items}
             checkingIds={checkingIds}
             onRecheck={recheck}
           />
           <PaginationControls pagination={listQuery.data.pagination} />
-        </>
+        </div>
       )}
     </div>
   )

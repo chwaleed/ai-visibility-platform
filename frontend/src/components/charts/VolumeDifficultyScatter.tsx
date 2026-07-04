@@ -13,6 +13,12 @@ const config = {
 
 const GROUPS: VisibilityStatus[] = ["not_visible", "visible", "unknown"]
 
+const DOT: Record<VisibilityStatus, string> = {
+  visible: "var(--chart-2)", not_visible: "var(--chart-4)", unknown: "var(--chart-5)",
+}
+
+const fmtK = (v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))
+
 export function VolumeDifficultyScatter({ queries }: { queries: DiscoveredQuery[] }) {
   const byStatus = (status: VisibilityStatus) =>
     queries
@@ -25,26 +31,30 @@ export function VolumeDifficultyScatter({ queries }: { queries: DiscoveredQuery[
       }))
 
   return (
-    <Card>
+    <Card className="overflow-visible rounded-2xl border border-border ring-0 shadow-none">
       <CardHeader>
-        <CardTitle className="text-base">Volume vs difficulty</CardTitle>
+        <CardTitle className="text-[14.5px]">Volume vs difficulty</CardTitle>
         <CardDescription>Top-left = high demand, low competition (best gaps)</CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={config} className="h-56 w-full">
-          <ScatterChart margin={{ left: -10 }}>
+        <ChartContainer config={config} className="aspect-auto h-[210px] w-full">
+          <ScatterChart margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               type="number" dataKey="difficulty" name="Difficulty" domain={[0, 100]}
-              tickLine={false} axisLine={false} fontSize={11}
-              label={{ value: "difficulty", position: "insideBottom", offset: -4, fontSize: 11 }}
+              ticks={[0, 25, 50, 75, 100]} tickLine={false} axisLine={false}
+              tick={{ fontSize: 10 }} tickMargin={6} height={20}
             />
             <YAxis
               type="number" dataKey="volume" name="Volume"
-              tickLine={false} axisLine={false} fontSize={11} width={70}
+              tickLine={false} axisLine={false} tick={{ fontSize: 10 }} width={38}
+              tickFormatter={fmtK}
             />
-            <ZAxis type="number" dataKey="score" range={[40, 200]} name="Score" />
-            <ChartTooltip content={<ChartTooltipContent />} />
+            <ZAxis type="number" dataKey="score" range={[40, 220]} name="Score" />
+            <ChartTooltip
+              cursor={{ strokeDasharray: "3 3" }}
+              content={<ChartTooltipContent nameKey="name" />}
+            />
             {GROUPS.map(status => (
               <Scatter
                 key={status}
@@ -56,6 +66,15 @@ export function VolumeDifficultyScatter({ queries }: { queries: DiscoveredQuery[
             ))}
           </ScatterChart>
         </ChartContainer>
+        <div className="mt-2 text-center text-[10px] text-muted-foreground">competitive difficulty</div>
+        <div className="mt-2 flex flex-wrap justify-center gap-4">
+          {GROUPS.map(status => (
+            <span key={status} className="flex items-center gap-1.5 text-[11px] text-secondary-foreground">
+              <span className="size-2.5 rounded-full" style={{ background: DOT[status] }} />
+              {config[status].label}
+            </span>
+          ))}
+        </div>
       </CardContent>
     </Card>
   )
