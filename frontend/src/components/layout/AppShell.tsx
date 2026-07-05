@@ -15,7 +15,7 @@ const NAV = [
 function BrandMark() {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="flex size-8 items-center justify-center rounded-[9px] bg-gradient-to-br from-[#7b5bff] to-[#5a2fe0]">
+      <div className="flex size-8 items-center justify-center rounded-[9px] bg-linear-to-br from-[#7b5bff] to-[#5a2fe0]">
         <Radar className="size-4 text-white" />
       </div>
       <span className="text-[15px] font-semibold tracking-[-0.01em]">AI Visibility</span>
@@ -101,10 +101,16 @@ function SidebarNav({
   )
 }
 
+const SIDEBAR_PROFILES = 5
+
 export function AppShell() {
   const { pathname } = useLocation()
   const { data } = useProfiles()
-  const profiles = data?.items ?? []
+  // Sidebar shows only the most recently run profiles (never-run ones sort
+  // last) — the full list lives on the paginated dashboard.
+  const profiles = [...(data?.items ?? [])]
+    .sort((a, b) => (b.last_run_at ?? "").localeCompare(a.last_run_at ?? ""))
+    .slice(0, SIDEBAR_PROFILES)
   const [open, setOpen] = useState(false)
 
   return (

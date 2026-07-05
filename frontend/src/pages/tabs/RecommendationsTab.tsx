@@ -1,5 +1,6 @@
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import { useState } from "react"
+import { Pager } from "@/components/Pager"
 import { Pill, type Tone } from "@/components/StatusBadge"
 import { EmptyState } from "@/components/states/EmptyState"
 import { ErrorState } from "@/components/states/ErrorState"
@@ -17,16 +18,6 @@ const CHIPS: { id: Priority | "all"; label: string }[] = [
 
 const PRIORITY_TONE: Record<Priority, Tone> = { high: "danger", medium: "warning", low: "neutral" }
 const PAGE_SIZE = 8
-
-function pageList(current: number, total: number): (number | "…")[] {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
-  const pages: (number | "…")[] = [1]
-  if (current > 3) pages.push("…")
-  for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) pages.push(i)
-  if (current < total - 2) pages.push("…")
-  pages.push(total)
-  return pages
-}
 
 export function RecommendationsTab({ profileUuid }: { profileUuid: string }) {
   const [prio, setPrio] = useState<Priority | "all">("all")
@@ -58,8 +49,6 @@ export function RecommendationsTab({ profileUuid }: { profileUuid: string }) {
   const safePage = Math.min(page, totalPages)
   const start = (safePage - 1) * PAGE_SIZE
   const paged = filtered.slice(start, start + PAGE_SIZE)
-
-  const cellBtn = "flex h-7 min-w-7 items-center justify-center rounded-lg px-1.5 text-xs"
 
   return (
     <div className="space-y-3.5">
@@ -120,42 +109,7 @@ export function RecommendationsTab({ profileUuid }: { profileUuid: string }) {
             <span className="text-xs text-muted-foreground">
               Showing {start + 1}–{Math.min(start + PAGE_SIZE, filtered.length)} of {filtered.length}
             </span>
-            {totalPages > 1 && (
-              <div className="flex flex-wrap items-center gap-1">
-                <button
-                  aria-label="Previous page" disabled={safePage <= 1}
-                  onClick={() => setPage(safePage - 1)}
-                  className={cn(cellBtn, "border border-border bg-card text-muted-foreground disabled:opacity-40")}
-                >
-                  <ChevronLeft className="size-3.5" />
-                </button>
-                {pageList(safePage, totalPages).map((p, i) =>
-                  p === "…" ? (
-                    <span key={`e${i}`} className={cn(cellBtn, "text-muted-foreground")}>…</span>
-                  ) : (
-                    <button
-                      key={p}
-                      onClick={() => setPage(p)}
-                      className={cn(
-                        cellBtn,
-                        p === safePage
-                          ? "bg-primary font-medium text-primary-foreground"
-                          : "border border-border bg-card text-secondary-foreground hover:bg-muted",
-                      )}
-                    >
-                      {p}
-                    </button>
-                  ),
-                )}
-                <button
-                  aria-label="Next page" disabled={safePage >= totalPages}
-                  onClick={() => setPage(safePage + 1)}
-                  className={cn(cellBtn, "border border-border bg-card text-muted-foreground disabled:opacity-40")}
-                >
-                  <ChevronRight className="size-3.5" />
-                </button>
-              </div>
-            )}
+            <Pager page={safePage} totalPages={totalPages} onPage={setPage} />
           </div>
         </div>
       )}
