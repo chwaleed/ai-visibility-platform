@@ -1,7 +1,8 @@
 # CI/CD: push to main → build both images → push to Docker Hub → SSH to the
 # server → pull the new images → restart compose.
 #
-# Required repository secrets (Settings → Secrets and variables → Actions):
+# Secrets are read from the "production" GitHub environment
+# (Settings → Environments → production → Environment secrets):
 #   DOCKERHUB_USERNAME   Docker Hub username
 #   DOCKERHUB_TOKEN      Docker Hub access token (hub.docker.com → Account settings → Security)
 #   VITE_API_BASE_URL    Public URL browsers reach the API at, e.g. http://<server-ip>:5000
@@ -25,6 +26,7 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
@@ -62,6 +64,7 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
