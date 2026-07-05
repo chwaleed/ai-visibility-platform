@@ -1,0 +1,26 @@
+# Production compose — pulls prebuilt images from Docker Hub; no source checkout
+# needed on the server. Deployed by .github/workflows/deploy.yml.
+#
+# One-time server setup (in the deploy directory, ~/ai-visibility):
+#   create backend.env with real values — see backend/.env.example
+services:
+  backend:
+    image: ${DOCKERHUB_USERNAME}/ai-visibility-backend:latest
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./backend.env
+    volumes:
+      - backend_db:/app/instance
+    restart: unless-stopped
+
+  frontend:
+    image: ${DOCKERHUB_USERNAME}/ai-visibility-frontend:latest
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_db:
