@@ -1,14 +1,12 @@
-# Backend — AI Visibility Platform
+# Backend — AI Visibility Intelligence API (Task 1)
 
 ## 1. What this is
 
-A 3-agent Flask API that answers: "Does AI mention your business when customers ask it questions in your space?" A business profile triggers a pipeline: Agent 1 (claude-sonnet-4-6) generates 12–18 realistic questions people ask AI assistants in that competitive space; Agent 2 (claude-haiku-4-5) pulls real search volume + difficulty via SE Ranking, then probes each question with Haiku acting as a natural consumer chatbot and checks deterministically whether the domain appears; Agent 3 (claude-sonnet-4-6) reads the worst gaps and produces 3–5 concrete content pieces to close them. Results persist in SQLite; every query gets an opportunity score ranking the best moments to invest content effort.
-
----
+A 3-agent Flask API that answers: "Does AI mention your business when customers ask it questions in your space?" A business profile triggers a pipeline: **Agent 1** (`claude-sonnet-4-6`) generates 12–18 realistic questions people ask AI assistants in that competitive space; **Agent 2** (`claude-haiku-4-5`) pulls real search volume + difficulty via SE Ranking, then probes each question with Haiku acting as a natural consumer chatbot — **3 independent samples per query, visibility decided by majority vote** — and checks deterministically whether the domain appears; **Agent 3** (`claude-sonnet-4-6`) reads the worst gaps and produces 3–5 concrete content pieces to close them. Results persist in SQLite; every query gets an opportunity score.
 
 ## 2. Setup (< 5 min)
 
-**Prerequisites:** [uv](https://docs.astral.sh/uv/) ≥ 0.5 · Python 3.12 · Anthropic API key · SE Ranking API key (both optional for tests).
+**Prerequisites:** [uv](https://docs.astral.sh/uv/) · Python 3.12 · Anthropic API key · SE Ranking API key (both optional for tests).
 
 ```bash
 cd backend
@@ -21,14 +19,14 @@ uv run flask run           # → http://localhost:5000
 **Or from the repo root with Docker (no Python install needed):**
 
 ```bash
-cp backend/.env.example backend/.env   # run from repo root — compose's env_file requires the file to exist; fill in real keys for live pipeline runs, or leave placeholders: the API still works with graceful degradation
+cp backend/.env.example backend/.env   # compose's env_file requires the file; placeholder keys still work (graceful degradation)
 docker compose up          # builds backend, runs migrations, starts on :5000
 ```
 
 **Run the full test suite (no API keys needed — all external calls are mocked):**
 
 ```bash
-uv run pytest              # 59 tests, ~1 s
+uv run pytest              # 64 tests, ~2 s
 ```
 
 ### Environment variables
@@ -42,160 +40,160 @@ uv run pytest              # 59 tests, ~1 s
 | `CORS_ORIGINS` | Comma-separated allowed origins | No |
 | `RATELIMIT_ENABLED` | `true`/`false` — tests set `false` | No |
 
----
+## 3. Architecture
 
-## 3. API reference
+### Module map
 
-All endpoints are under `/api/v1`. Success bodies are bare (no wrapping key). Errors use `{"error": {"code": "...", "message": "..."}}`.
+```
+app/
+├── __init__.py            create_app() factory: config, extensions, CORS,
+│                          blueprints, error handlers
+├── config.py              env-driven Config
+├── extensions.py          db (SQLAlchemy), migrate (Alembic), limiter
+├── api/
+│   ├── profiles.py        profiles CRUD, pipeline trigger (sync + async),
+│   │                      run polling, run history, recommendations
+│   └── queries.py         query list (filters + pagination), single-query recheck
+├── schemas/
+│   ├── requests.py        Pydantic request validation (ProfileCreate)
+│   └── agent_outputs.py   Pydantic schemas the LLM must satisfy
+├── services/
+│   └── pipeline.py        orchestrator: Agent 1 → 2 → 3, partial-failure
+│                          policy, correlation-ID logging, run payload builder
+├── agents/
+│   ├── llm.py             THE ONLY module that imports the Anthropic SDK
+│   ├── prompts.py         ALL prompts, one reviewable file
+│   ├── discovery.py       Agent 1 · QueryDiscoveryAgent
+│   ├── scoring.py         Agent 2 · VisibilityScoringAgent (+ self-consistency vote)
+│   ├── seranking.py       SE Ranking client (real volume/difficulty)
+│   └── recommendation.py  Agent 3 · ContentRecommendationAgent
+├── models/                4 SQLAlchemy models (see §6)
+└── utils/
+    ├── responses.py       ApiResponse — the single response constructor
+    └── scoring.py         opportunity score, pure function
+migrations/                Alembic
+tests/                     64 tests, every external call mocked
+```
+
+### Request flow
+
+```
+HTTP → blueprint route → Pydantic validation → service/agent → SQLAlchemy → ApiResponse
+```
+
+Every response goes through `ApiResponse.ok / created / paginated / error` — no route hand-builds a response. Success bodies are bare (spec-shaped); errors are always `{"error": {"code": "...", "message": "..."}}`. Global handlers cover 404/405/429/500 and Pydantic `ValidationError` (400 with per-field details).
+
+### The pipeline (orchestration + failure policy)
+
+`execute_pipeline()` in `services/pipeline.py` runs Agent 1 → 2 → 3 in sequence and owns the failure policy (an assessment requirement):
+
+- **Agent 1 fails** → run `failed` — there is nothing to score. The stored `error_message` is a user-friendly sentence; the raw exception stays in the logs.
+- **One query's probe fails** → that query is stored with `domain_visible = NULL` ("unknown"), scored with the uncertainty gap weight, and the run continues.
+- **Agent 3 fails** → run still `completed` (queries are valuable alone); `error_message` records that recommendations are missing.
+
+Every pipeline log line is prefixed `[run=<run_uuid>]` via a `LoggerAdapter` — one grep reconstructs a run's full trace (the "correlation ID" bonus).
+
+**Dual-mode execution:** `POST /profiles/<uuid>/run` is synchronous by default (returns the full run payload — good for graders and curl). `?async=1` starts a daemon thread and returns `202` with a poll URL; the frontend polls `GET /runs/<uuid>` every 2 s. Celery/Redis was deliberately skipped — a broker for a single-worker demo is over-engineering; the seam to add it is the `?async=1` code path only.
+
+**Rate limiting:** the trigger endpoint is limited to 5/min (Flask-Limiter); tests disable via `RATELIMIT_ENABLED=false`.
+
+## 4. API reference
+
+All endpoints under `/api/v1`.
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/profiles` | Create a business profile |
-| `GET` | `/profiles` | List all profiles (with stats) |
-| `GET` | `/profiles/<uuid>` | Get one profile + stats |
-| `POST` | `/profiles/<uuid>/run` | Run the full 3-agent pipeline (sync default; `?async=1` for background) |
-| `GET` | `/profiles/<uuid>/runs` | Pipeline run history |
-| `GET` | `/runs/<run_uuid>` | Get one run's full payload |
-| `GET` | `/profiles/<uuid>/queries` | Scored queries (`?min_score=`, `?status=`, `?page=`, `?per_page=`) |
-| `GET` | `/profiles/<uuid>/recommendations` | Content recommendations from last Agent 3 run |
-| `POST` | `/queries/<uuid>/recheck` | Re-probe a single query (live LLM + SE Ranking call) |
+| `POST` | `/profiles` | Create a business profile (201) |
+| `GET` | `/profiles` | List all profiles with stats |
+| `GET` | `/profiles/<uuid>` | One profile + summary stats |
+| `POST` | `/profiles/<uuid>/run` | Run the pipeline (sync default; `?async=1` → 202 + poll URL) |
+| `GET` | `/runs/<run_uuid>` | One run's full payload (status, counts, tokens, top-3 queries, recommendations) |
+| `GET` | `/profiles/<uuid>/runs` | Run history |
+| `GET` | `/profiles/<uuid>/queries` | Scored queries, sorted by score desc (`?min_score=` `?status=` `?page=` `?per_page=`) |
+| `GET` | `/profiles/<uuid>/recommendations` | Content recommendations |
+| `POST` | `/queries/<uuid>/recheck` | Re-run Agent 2 on one query (live call) |
 
-### Key curl examples
-
-**Create a profile:**
 ```bash
-curl -s -X POST http://localhost:5000/api/v1/profiles \
-  -H "Content-Type: application/json" \
+# create
+curl -s -X POST http://localhost:5000/api/v1/profiles -H "Content-Type: application/json" \
   -d '{"name":"Frase","domain":"frase.io","industry":"SEO Content Tools",
        "description":"AI content briefs","competitors":["surferseo.com","clearscope.io"]}'
-# → 201  {"profile_uuid": "...", "name": "Frase", "domain": "frase.io", ...}
-```
 
-**Run the pipeline (sync — waits for completion, 30–120 s):**
-```bash
-curl -s --max-time 300 -X POST \
-  http://localhost:5000/api/v1/profiles/<profile_uuid>/run
-# → 200  {"run_uuid":"...","status":"completed","queries_discovered":15,
-#          "tokens_used": 12345, "top_queries":[...], "recommendations":[...]}
-```
+# run (sync, 30–120 s)
+curl -s --max-time 300 -X POST http://localhost:5000/api/v1/profiles/<uuid>/run
 
-**Run async (returns immediately, poll /runs/<run_uuid>):**
-```bash
-curl -s -X POST "http://localhost:5000/api/v1/profiles/<profile_uuid>/run?async=1"
-# → 202  {"run_uuid":"...","status":"running","poll":"/api/v1/runs/<run_uuid>"}
-```
+# run (async) then poll
+curl -s -X POST "http://localhost:5000/api/v1/profiles/<uuid>/run?async=1"
+curl -s http://localhost:5000/api/v1/runs/<run_uuid>
 
-**Top opportunities:**
-```bash
+# top gaps
 curl -s "http://localhost:5000/api/v1/profiles/<uuid>/queries?min_score=0.5&status=not_visible"
 ```
 
----
+## 5. Agents & model selection
 
-## 4. Architecture decisions
+| Agent | Class | Model | Why |
+|---|---|---|---|
+| 1 · Query Discovery | `QueryDiscoveryAgent` | `claude-sonnet-4-6` | Generation quality is the product; poor queries cascade into worthless scores. Sonnet delivers without Opus-level cost |
+| 2 · Visibility Scoring | `VisibilityScoringAgent` | `claude-haiku-4-5` | 36–54 parallel probe calls per run (3 per query); the task is "answer like a consumer chatbot" — speed/cost dominate |
+| 3 · Recommendations | `ContentRecommendationAgent` | `claude-sonnet-4-6` | Content strategy needs contextual reasoning; cheap models produce generic titles |
 
-**App factory + blueprints.** `create_app()` in `app/__init__.py` wires two blueprints (`profiles_bp`, `queries_bp`) under `/api/v1`. This keeps route modules focused and lets tests call `create_app("testing")` cleanly.
+**Provider portability.** Agents never import the Anthropic SDK. Every call routes through two functions in `agents/llm.py`: `generate_structured()` (schema-enforced via `messages.parse()`, one retry, then typed `AgentError`) and `generate_text()` (free-text probes). Swapping providers = reimplementing that one ~90-line file.
 
-**`ApiResponse` as the single response-construction point.** `app/utils/responses.py` exposes four class-methods: `ok`, `created`, `paginated`, `error`. No route builds a response dict by hand. The error envelope is always `{"error": {"code": "...", "message": "..."}}`. This was an explicit assessment requirement; it also means changing the response shape is a one-file edit.
+**Agent 2 internals.** One batched SE Ranking call prices all keywords (keys normalized case-insensitively — SE Ranking lowercases its echo). Then per query: 3 independent Haiku answers sampled in a shared thread pool, deterministic brand matching in space-stripped text ("Surfer SEO" matches `surferseo`; a surfing article does **not** count — tested), and a majority vote decides visibility. Ties and all-failed → `unknown`, never a guess.
 
-**Agent separation.** Three agent classes + a pipeline orchestrator:
-- `DiscoveryAgent` (Agent 1) — query generation, structured output.
-- `VisibilityScoringAgent` (Agent 2) — SE Ranking call + parallel probes + scoring.
-- `RecommendationAgent` (Agent 3) — content recommendations from top gaps.
-- `execute_pipeline()` in `app/services/pipeline.py` — orchestrator; never touches the SDK directly.
+## 6. Data model & schema justification
 
-**Failure policy (assessment requirement):**
-- Agent 1 fails → run status `failed`, nothing to score. Run aborts.
-- Per-query probe fails (network, timeout, malformed) → that query gets `status: unknown`, `opportunity_score` uses `gap=0.7` (the uncertainty default). Run continues for all other queries.
-- Agent 3 fails → run completes with `status: completed`, `error_message` records what went wrong, recommendations list is empty.
-
-**Dual-mode execution.** Sync default: `POST /profiles/<uuid>/run` blocks until complete and returns the full payload — good for graders, integrations, and tests. `?async=1` spins a daemon thread and returns 202 immediately; callers poll `/runs/<run_uuid>`. Celery/Redis was deliberately skipped: the assessment has no message-broker requirement and adding one for a single-worker demo is over-engineering. The thread approach is documented as a known ceiling (see §9).
-
-**Rate limiting.** `POST /profiles/<uuid>/run` is limited to 5 per minute via Flask-Limiter. Tests disable it with `RATELIMIT_ENABLED=false`.
-
-**Correlation logging.** `execute_pipeline()` attaches a `correlation_id` (the `run_uuid`) to every log line so a failing run's full trace is greppable with one ID.
-
----
-
-## 5. Model selection (deliberate)
-
-| Agent | Model | Why |
+| Table | Key fields | Notes |
 |---|---|---|
-| Agent 1 — Query Discovery | `claude-sonnet-4-6` | Generation quality is the product. Poor queries cascade into worthless scores — Sonnet delivers it without Opus-level cost. |
-| Agent 2 — Visibility probes | `claude-haiku-4-5` | 12–18 parallel calls; Haiku answers like a real consumer chatbot. Speed and cost matter; the task is "answer naturally," not "reason carefully." |
-| Agent 3 — Recommendations | `claude-sonnet-4-6` | Content strategy requires contextual reasoning. A cheap model produces generic titles. |
+| `business_profiles` | uuid PK, name, domain, industry, description, competitors **JSON**, status, created/updated_at | competitors is a display list, never queried relationally — a join table would be over-modeling |
+| `pipeline_runs` | uuid PK, profile_uuid FK, status, queries_discovered, queries_scored, tokens_used, error_message, started/completed_at | one row per trigger; the audit trail the Runs tab renders |
+| `discovered_queries` | uuid PK, profile_uuid FK, run_uuid FK, query_text, keyword, intent, volume, difficulty, opportunity_score, domain_visible (**nullable bool**), visibility_position, discovered_at | double FK: queryable per-profile *and* auditable per-run. `NULL` visibility = unknown; the 3-state API `status` is a derived property — one fact, one column |
+| `content_recommendations` | uuid PK, profile_uuid FK, query_uuid FK, run_uuid FK, content_type, title, rationale, target_keywords **JSON**, priority, created_at | each rec targets exactly one query (the gap it closes) |
 
-**Provider portability.** Agents never import the Anthropic SDK. Every LLM call routes through two functions in `app/agents/llm.py`: `generate_structured()` (schema-enforced via `messages.parse()`) and `generate_text()` (free-text probes). Swapping providers means reimplementing that one ~90-line file.
+UUID string PKs throughout (URL-safe, non-enumerable). Timestamps on everything. Alembic migrations in `migrations/`.
 
----
-
-## 6. Opportunity score formula
+## 7. Opportunity score
 
 ```
 score = 0.35·volume_n + 0.25·ease + 0.25·gap + 0.15·intent_w    ∈ [0, 1]
 
 volume_n = min(1, log10(volume + 1) / 5)     # log-scaled demand, saturates at 100k
-ease     = 1 − difficulty / 100              # winnability (lower difficulty = more winnable)
-gap      = 1.0  absent                       # not in the answer at all
-         | 0.7  unknown                      # probe failed — uncertainty treated as opportunity
-         | 0.4  mentioned but not first      # visible but not leading
-         | 0.0  first mention               # already winning
-intent_w = 1.0  transactional
-         | 0.7  commercial
-         | 0.3  informational
+ease     = 1 − difficulty / 100              # winnability
+gap      = 1.0 absent │ 0.7 unknown │ 0.4 mentioned-not-first │ 0.0 first mention
+intent_w = 1.0 transactional │ 0.7 commercial │ 0.3 informational
 ```
 
-**Rationale:**
-- Volume (0.35) weighs most — opportunity is demand-led. No point winning a query nobody asks.
-- Ease and gap (0.25 each) are equal — being winnable and being absent matter as much as each other.
-- Intent (0.15) breaks ties — a buyer-intent gap is worth more than an informational one.
-- Log-scaling volume stops one high-volume keyword from compressing every other query to near-zero.
-- `unknown → 0.7`: a probe failure is closer to "missed opportunity" than to "already visible." Conservative but directionally correct.
+Volume weighs most (opportunity is demand-led); ease and gap are equal seconds; intent breaks ties. Log-scaling stops one whale keyword from compressing everything else. `unknown → 0.7`: a failed probe is closer to "missed opportunity" than "already visible." Pure function in `utils/scoring.py`, unit-tested for ordering properties.
 
-Implemented as a pure function in `app/utils/scoring.py`, no side effects, fully unit-tested for ordering properties.
+## 8. Prompt engineering — technique per agent
 
----
+All prompts live in **one reviewable file, [`app/agents/prompts.py`](app/agents/prompts.py)** — agents import constants and define no prompt strings of their own. Each prompt applies a researched technique chosen for that agent's observed failure mode:
 
-## 7. Real data & the provider story
+| Agent | Technique | Why |
+|---|---|---|
+| 1 · Discovery | **Few-shot** — 4 demonstrations balanced across the 3 intent labels, plus an explicit BAD-keyword counter-example | The `keyword` field feeds real SE Ranking lookups; sentence-like keywords measurably return no data. Demonstrations teach format/label-space better than descriptions (Brown et al. 2020, [arXiv:2005.14165](https://arxiv.org/abs/2005.14165); Min et al. 2022, [arXiv:2202.12837](https://arxiv.org/abs/2202.12837)); label-balanced examples avoid majority-label bias (Zhao et al. 2021, [arXiv:2102.09690](https://arxiv.org/abs/2102.09690)). Sparse-profile edge case handled explicitly |
+| 2 · Probe | **Deliberately zero-shot** prompt; **self-consistency** in code (3 samples, majority vote, ties → unknown) | Few-shot here would be a bug — example answers naming tools would bias which brands the model mentions. The prompt also never names the target business (test-enforced). Single-sample variance (visibility flipping between identical runs) is exactly what self-consistency addresses (Wang et al. 2022, [arXiv:2203.11171](https://arxiv.org/abs/2203.11171)) |
+| 3 · Recommendations | **One-shot worked example + mechanical calibration + light chain-of-thought** | The worked example anchors title/rationale specificity; priority is assigned from explicit score thresholds (≥0.70 high / 0.50–0.69 medium / else low) instead of drift-prone relative wording; a diagnose-gap → choose-format step sequences the reasoning (Wei et al. 2022, [arXiv:2201.11903](https://arxiv.org/abs/2201.11903)) |
 
-Search volume and difficulty are **real numbers from a live API**, not LLM estimates. The assessment named "DataForSEO etc." as example providers. We started there.
+**Malformed-output defense in depth:** schema spelled out in the prompt → `messages.parse()` enforces it at the API layer → Pydantic validates → one retry → typed `AgentError` the orchestrator degrades on. A hallucinated `target_query_uuid` from Agent 3 is reassigned to a valid gap rather than crashing.
 
-**What happened with DataForSEO:** Its trial proved account-gated in practice. The account hit a verification wall (error 40104) followed by an activity pause (error 40201) before a single real call completed. Both errors came from DataForSEO's trial tier controls, not from our integration.
+Rejected techniques: self-consistency for Agents 1/3 (generative outputs have no single answer to vote on), Tree-of-Thoughts/ReAct scaffolding (over-engineering for a 3-step pipeline).
 
-**The swap:** Because every provider call was isolated behind `fetch_keyword_metrics()` in a single module from day one (`app/agents/seranking.py`), switching to **SE Ranking's Keyword Research API** touched exactly one file plus two import lines. The rest of the codebase — agents, orchestrator, tests — never changed. The swap was live-verified the same day.
+## 9. Real data & the provider story
 
-**SE Ranking integration:** One batched POST to `/v1/keywords/export` per pipeline run sends all discovered keywords at once and gets back volume + difficulty together. Cost: 100 credits flat per run. SE Ranking's free tier includes 100,000 credits ≈ 1,000 full pipeline runs with no card required.
+Volume and difficulty are **real numbers from a live API**, never LLM estimates. The brief's example provider (DataForSEO) hit a trial verification wall (errors 40104/40201) before a single real call completed. Because every provider call sat behind `fetch_keyword_metrics()` in one module from day one, swapping to **SE Ranking's Keyword Research API** touched exactly one file plus two import lines — live-verified the same day. One batched POST per run prices all keywords (100 credits flat; the free 100K credits ≈ 1,000 runs). Key absent or call failed → neutral defaults (volume 0, difficulty 50), logged at WARNING, run continues.
 
-**Graceful degradation:** If the SE Ranking key is absent or the call fails, `fetch_keyword_metrics()` returns `{keyword: 0}` volumes and `{keyword: 50}` difficulties (neutral mid-difficulty defaults). The pipeline continues; queries are scored on available signal. This is logged at WARNING level.
+## 10. Testing philosophy
 
-**Production upgrade path:** DataForSEO's LLM Mentions API checks visibility directly in ChatGPT, Gemini, and Perplexity responses — replacing our single-model simulation with cross-model ground truth. The isolation seam is already in place.
+A few tests that verify behavior beat a hundred that verify mocks (64 tests, ~2 s, zero keys): formula *ordering* properties (more volume ⇒ higher score; absent ⇒ beats visible), agent prompt/parse contracts with malformed-output fallbacks, orchestrator partial-failure paths, brand-matching precision (a surfing article is not a brand mention), keyword case-normalization against SE Ranking's lowercased echo, self-consistency voting (majority wins; a 1–1 tie is `unknown`), probe-prompt blindness, and a thread-safety-conscious usage accumulator.
 
----
-
-## 8. Prompt engineering
-
-**Where prompts live:** Each agent class defines its system prompt as a module-level constant (`PROBE_SYSTEM` in `scoring.py`, full prompts in `discovery.py` and `recommendation.py`). No prompts are in config files or the database.
-
-**Schema-in-prompt + `parse()` enforcement:** For Agents 1 and 3, the output schema (field names, types, constraints) is spelled out in plain text inside the system prompt and simultaneously enforced via `messages.parse(output_format=MyPydanticModel)`. The API layer cannot return malformed JSON; the prompt keeps the contract human-readable. One retry precedes a typed `AgentError` with the original exception attached.
-
-**The probe prompt is blind:** Agent 2's system prompt (`PROBE_SYSTEM` in `app/agents/scoring.py`) never mentions the target business, the domain, or the competitors. Naming the target would prime the model to include or exclude it — invalidating the visibility simulation. A dedicated test (`test_probe_prompt_never_leaks_target`) asserts the prompt string contains neither `profile.domain` nor `profile.name`.
-
-**Retry layer:** `generate_structured()` in `llm.py` makes two attempts before raising `AgentError`. Per-query `generate_text()` calls in Agent 2 are wrapped in `try/except` inside the `probe()` closure — any exception marks the query `unknown` and the next query proceeds.
-
----
-
-## 9. Tradeoffs & honest limitations
+## 11. Tradeoffs & honest limitations
 
 | What | What it means | Upgrade path |
 |---|---|---|
-| Visibility simulated via Claude | We ask Haiku to answer naturally and check if the domain appears — not actual ChatGPT, Gemini, or Perplexity. Different models answer differently. | DataForSEO LLM Mentions API for cross-model ground truth |
-| Volume keyed to extracted keyword, not the full question | SE Ranking returns data for short keywords (`"seo content tools"`), not for natural-language questions. Volume reflects search demand, not AI-query frequency. | Vector-match full questions to keyword clusters |
-| SQLite | Works out of the box; not concurrent-write safe under high load. | Swap `DATABASE_URL` to Postgres — SQLAlchemy abstracts the rest |
-| In-process daemon thread for async | Single-worker Flask; thread shares process resources; a crash kills the run silently. No task queue. | Celery + Redis; change `?async=1` code path only |
-| `unknown` visibility counts as a gap (0.7) | Conservative heuristic. A probe failure could mask an already-visible result. | Retry policy per query; flag `unknown` separately in the UI |
-
----
-
-## 10. AI tools disclosure
-
-Built with **Claude Code** (Anthropic) as pair programmer under human direction. Architecture decisions, task planning, and code-review loops were interactive. Implementation ran task-by-task with tests written first; each task was independently reviewed before the next began. All design decisions documented in this README and in `docs/` — score formula weights, provider choice, failure policies, model selection — were deliberate choices made by the engineer. The AI accelerated execution; the judgment was human.
+| Visibility simulated via Claude | Haiku answering naturally ≠ actual ChatGPT/Gemini/Perplexity answers | DataForSEO LLM Mentions API; the provider seam exists |
+| Volume keyed to extracted keyword | Search APIs price keywords, not questions | Vector-match questions to keyword clusters |
+| SQLite | Not concurrent-write safe under load | Swap `DATABASE_URL` to Postgres |
+| Daemon thread for async | No task queue; a process crash kills the run | Celery + Redis behind the same `?async=1` contract |
+| `unknown` counts as gap 0.7 | A failed probe could mask an already-visible result | Per-query retry policy; surface `unknown` distinctly (the UI already does) |

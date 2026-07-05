@@ -1,63 +1,64 @@
 # AI Visibility Platform
 
-**Does AI mention your business when customers ask?** This platform finds out — and tells you what content to publish when the answer is no.
+**Does AI mention your business when customers ask?** Register a business profile, run a 3-agent pipeline, and get back: the questions people ask AI assistants in your competitive space, whether your domain appears in the answers (with real search volume and difficulty), an opportunity score ranking every gap, and concrete content recommendations to close the biggest ones.
 
-A business registers its profile, triggers a 3-agent AI pipeline, and gets back: the questions people ask AI assistants in its competitive space, whether the business appears in AI answers to each one (with real search volume and difficulty data), an opportunity score ranking every gap, and concrete content recommendations to close the biggest ones.
+Built for the Full Stack Engineer assessment — **Task 1:** Flask API + multi-agent backend ([`backend/`](backend/README.md)) · **Task 2:** React dashboard ([`frontend/`](frontend/README.md)). Each sub-README documents that project's complete architecture; this file covers what the brief asks for: setup, architecture decisions, agent design rationale, model selection, the opportunity score formula, schema justification, and tradeoffs.
 
-Built as a Full Stack Engineer assessment: **Flask API + multi-agent backend** (Task 1) and **React dashboard** (Task 2).
+## Setup
 
-## How the pipeline works
+### Backend (Task 1)
 
-```
-Business Profile ("Frase", frase.io, competitors: [surferseo.com, ...])
-      │
-      ▼
-┌──────────────────────────────────────────────────────────────────┐
-│ AGENT 1 · Query Discovery              claude-sonnet-4-6         │
-│ Generates 12–18 realistic questions users ask AI assistants in   │
-│ this space, each with a priceable seed keyword + intent label.   │
-└──────────────────────────────┬───────────────────────────────────┘
-                               ▼
-┌──────────────────────────────────────────────────────────────────┐
-│ AGENT 2 · Visibility Scoring           claude-haiku-4-5          │
-│ • ONE batched SE Ranking call → real volume + difficulty         │
-│ • Per query: 3 independent Haiku answers (parallel pool),        │
-│   majority vote on visibility (self-consistency) → deterministic │
-│   scan: is the domain in the answer? At what position?           │
-│ • Multi-factor opportunity score (pure function)                 │
-│ • Any per-query failure → status "unknown", run continues        │
-└──────────────────────────────┬───────────────────────────────────┘
-                               ▼
-┌──────────────────────────────────────────────────────────────────┐
-│ AGENT 3 · Content Recommendations      claude-sonnet-4-6         │
-│ Top ≤5 queries where the domain is ABSENT → 3–5 concrete         │
-│ content pieces (type, title, rationale, keywords, priority).     │
-└──────────────────────────────┬───────────────────────────────────┘
-                               ▼
-                   SQLite (SQLAlchemy + migrations)
+Prerequisites: [uv](https://docs.astral.sh/uv/) · Anthropic API key · SE Ranking API key (both optional for tests — every external call is mocked).
+
+```bash
+cd backend
+cp .env.example .env        # fill in ANTHROPIC_API_KEY, SERANKING_API_KEY
+uv sync
+uv run flask db upgrade
+uv run flask run            # → http://localhost:5000
+uv run pytest               # 64 tests, no keys needed
 ```
 
-## Key design decisions
+### Frontend (Task 2)
 
-- **All LLM traffic through one module** (`app/agents/llm.py`). Agents never import the SDK. Swapping providers = rewriting one ~80-line file. We deliberately did **not** build a provider interface for a single provider.
-- **Structured outputs, belt and braces:** `messages.parse()` enforces the schema at the API layer, the same schema is spelled out inside each prompt, Pydantic validates, and one retry precedes a typed `AgentError`. The pipeline cannot crash on malformed LLM output.
-- **Deliberate model split:** Sonnet 4.6 for generation (Agents 1 & 3) — strong structured output at a fraction of Opus's cost; Haiku 4.5 for Agent 2's 12–18 parallel visibility probes, where speed/cost matter and the task is "answer like a consumer chatbot."
-- **The probe is blind.** Agent 2's prompt never mentions the target business — naming it would bias the very visibility check we're simulating. A dedicated test enforces this.
-- **Brand matching in space-stripped text:** "Surfer SEO" in an answer matches domain root `surferseo` without fragile heuristics — and a surfing article does *not* count as a brand mention (tested).
-- **Partial-failure policy** (assessment requirement): Agent 1 fails → run fails (nothing to score). One query's probe fails → that query is `unknown`, the run continues. Agent 3 fails → run completes without recommendations, error recorded.
-- **Every response through one `ApiResponse` class** — consistent success shapes and `{"error": {"code", "message"}}` envelope everywhere.
+```bash
+cd frontend
+pnpm install
+cp .env.example .env        # VITE_API_BASE_URL, defaults to http://localhost:5000
+pnpm dev                    # → http://localhost:5173
+pnpm test                   # vitest component/unit tests
+```
 
-## Prompt engineering — technique per agent, chosen by failure mode
+### Full stack via Docker
 
-All prompts live in one reviewable file, [`app/agents/prompts.py`](backend/app/agents/prompts.py). Each applies a specific researched technique picked for that agent's observed failure mode — and two techniques were deliberately rejected:
+```bash
+cp backend/.env.example backend/.env    # keys optional — pipeline degrades gracefully
+docker compose up --build
+```
 
-| Agent | Technique | Why |
-|---|---|---|
-| 1 · Discovery | **Few-shot examples** — 4 demonstrations, balanced across the 3 intent labels, plus one explicit BAD-keyword counter-example | The `keyword` field feeds real SE Ranking lookups, and sentence-like keywords measurably return no data. Demonstrations teach output format and label space better than prose descriptions (Brown et al. 2020, [arXiv:2005.14165](https://arxiv.org/abs/2005.14165); Min et al. 2022, [arXiv:2202.12837](https://arxiv.org/abs/2202.12837)). Examples are label-balanced to avoid majority-label bias (Zhao et al. 2021, [arXiv:2102.09690](https://arxiv.org/abs/2102.09690)). Also handles the sparse-profile edge case explicitly. |
-| 2 · Probe | **Deliberately zero-shot** in the prompt; **self-consistency** in code — 3 sampled answers per query, majority vote, ties → `unknown` | Few-shot here would be a bug: any example answer naming tools biases which brands the model mentions. The real failure mode was single-sample variance (identical re-runs flipping visible ↔ not visible); sampling diverse answers and taking the majority is exactly what self-consistency addresses (Wang et al. 2022, [arXiv:2203.11171](https://arxiv.org/abs/2203.11171)). Cost: 3× Haiku probes per query, wall-clock flat (same parallel pool). |
-| 3 · Recommendations | **One-shot worked example + mechanical calibration + light chain-of-thought** | A worked example anchors "concrete, publishable title" better than describing it; priority is now assigned from explicit score thresholds (≥0.70 high / 0.50–0.69 medium / else low) instead of the drift-prone "biggest → high"; and a two-step diagnose-the-gap → choose-the-format instruction sequences the reasoning (Wei et al. 2022, [arXiv:2201.11903](https://arxiv.org/abs/2201.11903)). |
+API on http://localhost:5000, dashboard on http://localhost:3000. `VITE_API_BASE_URL` is a **build ARG** (Vite bakes env at build time) — set it in `docker-compose.yml`, not as a runtime env var.
 
-Rejected: self-consistency for Agents 1/3 (generative outputs have no single answer to vote on — pure cost), and Tree-of-Thoughts/ReAct-style scaffolding (over-engineering for a 3-step pipeline; simplicity is a stated evaluation criterion).
+All environment variables are listed in each project's `.env.example` (no real keys committed).
+
+## Architecture decisions (summary)
+
+- **Three separated agents + an orchestrator.** `QueryDiscoveryAgent` → `VisibilityScoringAgent` → `ContentRecommendationAgent`, coordinated by `execute_pipeline()`. Partial-failure policy: Agent 1 fails → run fails (nothing to score); one query's probe fails → that query is `unknown`, the run continues; Agent 3 fails → run completes without recommendations.
+- **All LLM traffic through one module** (`app/agents/llm.py`) — agents never import the SDK; swapping providers is a one-file change. Structured outputs are schema-enforced (`messages.parse()` + Pydantic), spelled out in the prompts, and retried once before a typed error — the pipeline cannot crash on malformed LLM output.
+- **All prompts in one reviewable file** (`app/agents/prompts.py`), each applying a research-backed technique — few-shot discovery, self-consistency probe voting, one-shot + chain-of-thought recommendations. Full rationale with citations in the [backend README](backend/README.md).
+- **One response constructor** (`ApiResponse.ok/created/paginated/error`) — consistent success shapes and a uniform `{"error": {"code", "message"}}` envelope on every endpoint.
+- **Frontend: one network boundary, two kinds of state.** All API calls live in `services/api.ts` (axios); TanStack Query owns server state, Zustand micro-stores own UI state only. Every data view renders loading / error / empty / filled.
+
+**Task 2 stack choice (per brief):** React 19 + TypeScript (strict) with Vite; component library: Tailwind v4 + shadcn/ui; charts: recharts. Reasoning in the [frontend README](frontend/README.md).
+
+## Agent design & model selection
+
+| Agent | Responsibility | Model | Why this model |
+|---|---|---|---|
+| 1 · Query Discovery | 12–18 realistic questions + a priceable seed keyword + intent per question | `claude-sonnet-4-6` | Generation quality is the product — poor queries cascade into worthless scores. Sonnet delivers it at a fraction of Opus's cost |
+| 2 · Visibility Scoring | Real volume/difficulty (SE Ranking, one batched call) + blind visibility probes (3 samples per query, majority vote) + opportunity score | `claude-haiku-4-5` | 36–54 parallel probe calls per run; the task is "answer like a consumer chatbot", so speed/cost dominate |
+| 3 · Content Recommendations | 3–5 concrete content pieces targeting the worst gaps | `claude-sonnet-4-6` | Content strategy needs contextual reasoning; cheap models produce generic titles |
+
+The probe prompt is **blind** — it never names the target business, because naming it would bias the very visibility check being simulated (test-enforced). Visibility per query is decided by **majority vote across 3 sampled answers** (self-consistency), because a single sample flips run-to-run on borderline queries.
 
 ## Opportunity score
 
@@ -70,87 +71,35 @@ gap      = 1.0 absent │ 0.7 unknown │ 0.4 mentioned-not-first │ 0.0 first 
 intent   = 1.0 transactional │ 0.7 commercial │ 0.3 informational
 ```
 
-Reasoning: opportunity is demand-led (volume weighs most); being absent and being winnable matter equally next; buyer intent breaks ties. Log-scaling stops one whale keyword from crushing the ranking. "Unknown" visibility scores 0.7 on the gap factor — uncertainty is closer to opportunity than to safety. Implemented as a pure function (`app/utils/scoring.py`), unit-tested for ordering properties.
+Reasoning: opportunity is demand-led (volume weighs most); being absent and being winnable matter equally next; buyer intent breaks ties. Log-scaling stops one whale keyword from crushing the ranking. `unknown` scores 0.7 on the gap factor — uncertainty is closer to opportunity than to safety. Pure function in `app/utils/scoring.py`, unit-tested for ordering properties.
 
-## Real data — and an honest provider story
+## Data model & schema justification
 
-Search volume and difficulty are **real numbers**, never LLM-invented. The assessment names "DataForSEO etc." as example providers — we started there, and its trial proved account-gated in practice (verification wall, then an activity pause; error codes 40104/40201). Because every provider call was isolated in one module from day one, switching to the **SE Ranking Keyword Research API** touched exactly one file plus two import lines, and was live-verified the same day. One batched call per pipeline run returns volume + difficulty for every keyword (100 credits flat; the free 100K credits ≈ 1,000 runs, no card required).
+Four tables — `business_profiles`, `pipeline_runs`, `discovered_queries`, `content_recommendations` — exactly the entities the domain has, no more. UUID string PKs (safe to expose in URLs, no enumeration). `discovered_queries` carries FKs to both its profile and the run that produced it, so results are queryable per-profile *and* auditable per-run. `competitors` and `target_keywords` are JSON columns — they're display lists, never queried relationally, so join tables would be over-modeling. Visibility is stored as nullable `domain_visible` (NULL = unknown) and the API's three-state `status` is derived — one fact, one column. Alembic migrations included. Full schema detail in the [backend README](backend/README.md).
 
-Production upgrade path worth noting: DataForSEO's LLM Mentions API could check visibility across ChatGPT/Gemini/Perplexity answers directly, replacing our single-model simulation.
+## Real data (external API requirement)
 
-## Backend setup
+Search volume and difficulty are **real numbers, never LLM-invented**. The brief's example provider (DataForSEO) proved account-gated at trial; because all provider calls were isolated in one module from day one, swapping to the **SE Ranking Keyword Research API** touched one file and was live-verified the same day. One batched call per run prices every keyword. If the key is absent or the call fails, the pipeline degrades to neutral defaults and keeps going.
 
-Prerequisites: [uv](https://docs.astral.sh/uv/) · an Anthropic API key · an SE Ranking API key (both optional for tests; the pipeline degrades gracefully without the data key).
+## Bonus items implemented
 
-```bash
-cd backend
-cp .env.example .env        # fill in ANTHROPIC_API_KEY, SERANKING_API_KEY
-uv sync
-uv run flask --app app db upgrade
-uv run flask --app app run           # http://localhost:5000
-```
+- **Async pipeline execution** with a status polling endpoint (`POST .../run?async=1` → 202 + `GET /runs/<uuid>`) — the frontend uses this to show live progress
+- **Rate limiting** on the pipeline trigger (5/min, Flask-Limiter)
+- **Unit tests with mocked LLM responses** — 64 backend tests + 11 frontend tests, all runnable with zero API keys
+- **Request validation with Pydantic** (bodies) and structured-output schemas (LLM responses)
+- **Structured logging with a correlation ID** (`[run=<uuid>]`) on every pipeline log line
+- **Docker Compose** for the full stack
+- **Dark mode toggle** and a **pagination component with page-size control** (frontend)
 
-Run the tests (no API keys needed — every external call is mocked):
+## Tradeoffs (honest)
 
-```bash
-uv run pytest
-```
-
-### Environment variables
-
-| Variable | Purpose |
-|---|---|
-| `ANTHROPIC_API_KEY` | LLM calls (Agents 1–3). Tests run without it |
-| `SERANKING_API_KEY` | Real volume/difficulty data. Absent → neutral defaults, run continues |
-| `DATABASE_URL` | Default `sqlite:///dev.db` |
-| `SECRET_KEY` | Flask secret |
-| `CORS_ORIGINS` | Comma-separated allowed frontend origins |
-| `RATELIMIT_ENABLED` | `true`/`false` (tests disable it) |
-
-## Frontend setup
-
-```bash
-cd frontend
-pnpm install
-cp .env.example .env         # VITE_API_BASE_URL, defaults to http://localhost:5000
-pnpm dev                     # http://localhost:5173
-```
-
-See [`frontend/README.md`](frontend/README.md) for the architecture (single axios boundary,
-Query for server state / Zustand for UI state, four-state views, token-only theming).
-
-## Full stack via Docker
-
-```bash
-cp backend/.env.example backend/.env    # fill in keys (optional — pipeline degrades without them)
-docker compose up --build
-```
-
-API on http://localhost:5000, dashboard on http://localhost:3000. `VITE_API_BASE_URL` is a
-**build ARG** (Vite bakes env at build time) — set it in `docker-compose.yml` under the frontend
-service, not as a runtime env var.
-
-## Repository layout
-
-```
-backend/            Flask API — app factory, blueprints, agents, orchestrator
-  app/agents/       llm.py (ALL Anthropic calls) · discovery.py · scoring.py ·
-                    seranking.py (keyword data) · recommendation.py
-  app/services/     pipeline.py — orchestrator + run payload builder
-  app/utils/        responses.py (ApiResponse) · scoring.py (opportunity formula)
-  app/models/       4 SQLAlchemy models, UUID PKs, Alembic migrations
-  tests/            64 tests, all external calls mocked
-frontend/           React + TypeScript dashboard (Vite, shadcn/ui, TanStack Query, Zustand)
-  src/services/     api.ts — the single network boundary (axios + ApiError envelope)
-  src/hooks/        one hook per resource + usePipeline (trigger + poll)
-  src/pages/        Dashboard · CreateProfile · ProfileDetail (Overview/Queries/Recs/Runs tabs)
-docs/               assessment brief · design spec · implementation plans
-```
-
-## Testing philosophy
-
-A few tests that verify behavior beat a hundred that verify mocks: formula *ordering* properties (more volume ⇒ higher score; absent ⇒ beats visible), agent prompt/parse contracts with malformed-output fallbacks, orchestrator partial-failure paths (one probe dies → run completes; Agent 1 dies → run fails), brand-matching precision (a surfing article is not a brand mention), self-consistency voting (majority wins; a 1–1 tie is `unknown`, not a guess), and a thread-safety-conscious usage accumulator. Everything runs keyless in ~1 second.
+| Tradeoff | Why it's acceptable here | Upgrade path |
+|---|---|---|
+| Visibility is simulated with Claude, not measured across ChatGPT/Gemini/Perplexity | Single-provider probe with majority voting is a faithful, affordable proxy | DataForSEO LLM Mentions API — the provider seam already exists |
+| Volume is keyed to an extracted keyword, not the natural-language question | Search APIs price keywords, not sentences; the prompt engineering enforces priceable keywords | Vector-match questions to keyword clusters |
+| SQLite | Zero-setup for graders; SQLAlchemy abstracts the engine | Point `DATABASE_URL` at Postgres |
+| Async = in-process daemon thread, not a task queue | No broker requirement in the brief; Celery for a single-worker demo is over-engineering | Celery/Redis behind the same `?async=1` contract |
 
 ## AI tools disclosure
 
-Built with Claude (Claude Code) as pair programmer under human direction: architecture decisions, task planning, code review loops, and API research were interactive; implementation was executed task-by-task with tests written first and each task independently reviewed. All design decisions (score formula, provider choice, failure policies, model selection) were deliberate and are documented above and in `docs/`.
+Built with **Claude Code** (Anthropic) as pair programmer under human direction: architecture, task planning, and review loops were interactive; implementation ran task-by-task with tests first. All design decisions documented here — formula weights, provider choice, failure policies, model and prompt-technique selection — were deliberate.
