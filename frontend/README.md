@@ -51,7 +51,7 @@ pnpm dev                  # http://localhost:5173
 - **Profile detail** — header + Run Pipeline (live status), and four tabs:
   - **Overview** — opportunity-score histogram + volume/difficulty scatter (colored by visibility).
   - **Queries** — filterable, paginated table with per-row visibility recheck.
-  - **Recommendations** — grouped High → Medium → Low.
+  - **Recommendations** — priority-filterable table with expandable rationale/keywords, paginated.
   - **Runs** — pipeline run history with duration and token usage.
 
 ## Testing

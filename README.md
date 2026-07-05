@@ -127,7 +127,7 @@ backend/            Flask API — app factory, blueprints, agents, orchestrator
   app/services/     pipeline.py — orchestrator + run payload builder
   app/utils/        responses.py (ApiResponse) · scoring.py (opportunity formula)
   app/models/       4 SQLAlchemy models, UUID PKs, Alembic migrations
-  tests/            59 tests, all external calls mocked
+  tests/            62 tests, all external calls mocked
 frontend/           React + TypeScript dashboard (Vite, shadcn/ui, TanStack Query, Zustand)
   src/services/     api.ts — the single network boundary (axios + ApiError envelope)
   src/hooks/        one hook per resource + usePipeline (trigger + poll)
