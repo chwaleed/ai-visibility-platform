@@ -60,7 +60,7 @@ export default function ProfileDetail() {
   const items = allQueries.data?.items ?? []
   const visN = items.filter(q => q.status === "visible").length
   const visRate = items.length ? `${Math.round((visN / items.length) * 100)}%` : "—"
-  const recsCount = recsQuery.data?.items.length ?? 0
+  const recsCount = recsQuery.data?.pagination.total ?? 0
   const lastRun = activeRun ?? runsQuery.data?.items[0]
 
   return (

@@ -6,7 +6,9 @@ from app.extensions import db, limiter
 from app.models import BusinessProfile, ContentRecommendation, PipelineRun
 from app.schemas.requests import ProfileCreate
 from app.services.pipeline import build_run_payload, execute_pipeline, start_run
-from app.utils.responses import ApiResponse
+from app.utils.responses import ApiResponse, page_args
+
+_PRIORITIES = ("high", "medium", "low")
 
 profiles_bp = Blueprint("profiles", __name__)
 
@@ -99,7 +101,12 @@ def run_history(uuid: str) -> tuple[Response, int]:
     profile = db.session.get(BusinessProfile, uuid)
     if profile is None:
         return ApiResponse.error("not_found", f"Profile {uuid} not found", 404)
-    return ApiResponse.ok({"items": [r.to_dict() for r in profile.runs]})
+    page, per_page = page_args(request.args)
+    q = (PipelineRun.query.filter_by(profile_uuid=uuid)
+         .order_by(PipelineRun.started_at.desc()))
+    total = q.count()
+    items = q.offset((page - 1) * per_page).limit(per_page).all()
+    return ApiResponse.paginated([r.to_dict() for r in items], page, per_page, total)
 
 
 @profiles_bp.get("/profiles/<uuid>/recommendations")
@@ -107,6 +114,17 @@ def list_recommendations(uuid: str) -> tuple[Response, int]:
     profile = db.session.get(BusinessProfile, uuid)
     if profile is None:
         return ApiResponse.error("not_found", f"Profile {uuid} not found", 404)
-    recs = (ContentRecommendation.query.filter_by(profile_uuid=uuid)
-            .order_by(ContentRecommendation.created_at.desc()).all())
-    return ApiResponse.ok({"items": [r.to_dict() for r in recs]})
+
+    q = ContentRecommendation.query.filter_by(profile_uuid=uuid)
+    priority = request.args.get("priority")
+    if priority is not None:
+        if priority not in _PRIORITIES:
+            return ApiResponse.error(
+                "invalid_parameter", "priority must be one of: high, medium, low", 400)
+        q = q.filter_by(priority=priority)
+
+    page, per_page = page_args(request.args)
+    total = q.count()
+    items = (q.order_by(ContentRecommendation.created_at.desc())
+             .offset((page - 1) * per_page).limit(per_page).all())
+    return ApiResponse.paginated([r.to_dict() for r in items], page, per_page, total)

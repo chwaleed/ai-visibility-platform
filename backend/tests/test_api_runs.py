@@ -66,3 +66,22 @@ def test_run_history(client, monkeypatch):
     prof = client.get(f"/api/v1/profiles/{uuid}").get_json()
     assert prof["last_run_status"] == "completed"
     assert prof["last_run_at"] is not None
+
+
+def test_run_history_is_paginated(client, monkeypatch):
+    monkeypatch.setattr("app.api.profiles.execute_pipeline", _fake_execute)
+    uuid = client.post("/api/v1/profiles", json=VALID).get_json()["profile_uuid"]
+    for _ in range(3):
+        client.post(f"/api/v1/profiles/{uuid}/run")
+    body = client.get(f"/api/v1/profiles/{uuid}/runs?page=2&per_page=2").get_json()
+    assert body["pagination"] == {"page": 2, "per_page": 2, "total": 3, "total_pages": 2}
+    assert len(body["items"]) == 1
+
+
+def test_recommendations_paginated_and_priority_validated(client):
+    uuid = client.post("/api/v1/profiles", json=VALID).get_json()["profile_uuid"]
+    body = client.get(f"/api/v1/profiles/{uuid}/recommendations").get_json()
+    assert body["items"] == [] and body["pagination"]["total"] == 0
+    res = client.get(f"/api/v1/profiles/{uuid}/recommendations?priority=urgent")
+    assert res.status_code == 400
+    assert res.get_json()["error"]["code"] == "invalid_parameter"

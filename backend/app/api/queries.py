@@ -3,12 +3,11 @@ from flask import Blueprint, Response, request
 from app.agents.scoring import VisibilityScoringAgent
 from app.extensions import db
 from app.models import BusinessProfile, DiscoveredQuery
-from app.utils.responses import ApiResponse
+from app.utils.responses import ApiResponse, page_args
 
 queries_bp = Blueprint("queries", __name__)
 
 _STATUS_FILTERS = {"visible": True, "not_visible": False, "unknown": None}
-MAX_PER_PAGE = 100
 
 
 @queries_bp.get("/profiles/<uuid>/queries")
@@ -31,8 +30,7 @@ def list_queries(uuid: str) -> tuple[Response, int]:
                 "status must be one of: visible, not_visible, unknown", 400)
         q = q.filter(DiscoveredQuery.domain_visible.is_(_STATUS_FILTERS[status]))
 
-    page = max(request.args.get("page", 1, type=int), 1)
-    per_page = min(max(request.args.get("per_page", 20, type=int), 1), MAX_PER_PAGE)
+    page, per_page = page_args(request.args)
 
     total = q.count()
     items = (q.order_by(DiscoveredQuery.opportunity_score.desc())

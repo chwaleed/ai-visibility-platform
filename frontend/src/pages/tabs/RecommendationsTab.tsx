@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/states/EmptyState"
 import { ErrorState } from "@/components/states/ErrorState"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import { useRecommendations } from "@/hooks/useRecommendations"
+import { RECS_PER_PAGE, useRecommendations } from "@/hooks/useRecommendations"
 import type { Priority } from "@/types"
 
 const CHIPS: { id: Priority | "all"; label: string }[] = [
@@ -17,13 +17,14 @@ const CHIPS: { id: Priority | "all"; label: string }[] = [
 ]
 
 const PRIORITY_TONE: Record<Priority, Tone> = { high: "danger", medium: "warning", low: "neutral" }
-const PAGE_SIZE = 8
 
 export function RecommendationsTab({ profileUuid }: { profileUuid: string }) {
   const [prio, setPrio] = useState<Priority | "all">("all")
   const [page, setPage] = useState(1)
   const [open, setOpen] = useState<Set<string>>(new Set())
-  const { data, isPending, isError, error, refetch } = useRecommendations(profileUuid)
+  const { data, isPending, isError, error, refetch } = useRecommendations(
+    profileUuid, prio === "all" ? undefined : prio, page,
+  )
 
   function toggle(id: string) {
     setOpen(prev => {
@@ -35,7 +36,9 @@ export function RecommendationsTab({ profileUuid }: { profileUuid: string }) {
 
   if (isPending) return <Skeleton className="h-64 rounded-2xl" />
   if (isError) return <ErrorState message={error.message} onRetry={() => void refetch()} />
-  if (data.items.length === 0) {
+
+  const { items, pagination } = data
+  if (pagination.total === 0 && prio === "all") {
     return (
       <EmptyState
         title="No recommendations yet"
@@ -44,11 +47,7 @@ export function RecommendationsTab({ profileUuid }: { profileUuid: string }) {
     )
   }
 
-  const filtered = prio === "all" ? data.items : data.items.filter(r => r.priority === prio)
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const start = (safePage - 1) * PAGE_SIZE
-  const paged = filtered.slice(start, start + PAGE_SIZE)
+  const start = (pagination.page - 1) * RECS_PER_PAGE
 
   return (
     <div className="space-y-3.5">
@@ -69,7 +68,7 @@ export function RecommendationsTab({ profileUuid }: { profileUuid: string }) {
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {items.length === 0 ? (
         <div className="rounded-2xl border border-border bg-card px-6 py-9 text-center text-[13px] text-muted-foreground">
           No recommendations at this priority.
         </div>
@@ -86,7 +85,7 @@ export function RecommendationsTab({ profileUuid }: { profileUuid: string }) {
                 </tr>
               </thead>
               <tbody>
-                {paged.map(rec => {
+                {items.map(rec => {
                   const isOpen = open.has(rec.recommendation_uuid)
                   return (
                     <FragmentRow
@@ -107,9 +106,9 @@ export function RecommendationsTab({ profileUuid }: { profileUuid: string }) {
 
           <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 pt-3 pb-2">
             <span className="text-xs text-muted-foreground">
-              Showing {start + 1}–{Math.min(start + PAGE_SIZE, filtered.length)} of {filtered.length}
+              Showing {start + 1}–{Math.min(start + RECS_PER_PAGE, pagination.total)} of {pagination.total}
             </span>
-            <Pager page={safePage} totalPages={totalPages} onPage={setPage} />
+            <Pager page={pagination.page} totalPages={pagination.total_pages} onPage={setPage} />
           </div>
         </div>
       )}

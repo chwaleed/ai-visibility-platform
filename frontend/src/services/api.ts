@@ -1,9 +1,9 @@
 import axios from "axios"
 import type { AxiosResponse } from "axios"
 import type {
-  DiscoveredQuery, Paginated, PipelineRun, Profile, ProfileCreateBody,
+  DiscoveredQuery, PageParams, Paginated, PipelineRun, Profile, ProfileCreateBody,
   ProfileCreated, ProfileStats, ProfileWithStats, QueryListParams,
-  Recommendation, RunAccepted, RunPayload,
+  Recommendation, RecommendationListParams, RunAccepted, RunPayload,
 } from "@/types"
 
 const BASE = `${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5000"}/api/v1`
@@ -46,14 +46,14 @@ async function request<T>(call: Promise<AxiosResponse<T>>): Promise<T> {
   }
 }
 
-function qs(params: Record<string, string | number | undefined>): string {
+function qs(params: object): string {
   const entries = Object.entries(params).filter(([, v]) => v !== undefined)
   if (!entries.length) return ""
   return `?${new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString()}`
 }
 
 function buildQueryString(params: QueryListParams): string {
-  return qs(params as Record<string, string | number | undefined>)
+  return qs(params)
 }
 
 export const api = {
@@ -64,11 +64,12 @@ export const api = {
   runPipelineAsync: (uuid: string) =>
     request(http.post<RunAccepted>(`/profiles/${uuid}/run?async=1`)),
   getRun: (runUuid: string) => request(http.get<RunPayload>(`/runs/${runUuid}`)),
-  listRuns: (uuid: string) => request(http.get<{ items: PipelineRun[] }>(`/profiles/${uuid}/runs`)),
+  listRuns: (uuid: string, params: PageParams = {}) =>
+    request(http.get<Paginated<PipelineRun>>(`/profiles/${uuid}/runs${qs(params)}`)),
   listQueries: (uuid: string, params: QueryListParams = {}) =>
     request(http.get<Paginated<DiscoveredQuery>>(`/profiles/${uuid}/queries${buildQueryString(params)}`)),
   recheckQuery: (queryUuid: string) =>
     request(http.post<DiscoveredQuery>(`/queries/${queryUuid}/recheck`)),
-  listRecommendations: (uuid: string) =>
-    request(http.get<{ items: Recommendation[] }>(`/profiles/${uuid}/recommendations`)),
+  listRecommendations: (uuid: string, params: RecommendationListParams = {}) =>
+    request(http.get<Paginated<Recommendation>>(`/profiles/${uuid}/recommendations${qs(params)}`)),
 }

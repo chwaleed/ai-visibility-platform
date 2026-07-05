@@ -108,9 +108,9 @@ All endpoints under `/api/v1`.
 | `GET` | `/profiles/<uuid>` | One profile + summary stats |
 | `POST` | `/profiles/<uuid>/run` | Run the pipeline (sync default; `?async=1` → 202 + poll URL) |
 | `GET` | `/runs/<run_uuid>` | One run's full payload (status, counts, tokens, top-3 queries, recommendations) |
-| `GET` | `/profiles/<uuid>/runs` | Run history |
+| `GET` | `/profiles/<uuid>/runs` | Run history, newest first, paginated (`?page=` `?per_page=`) |
 | `GET` | `/profiles/<uuid>/queries` | Scored queries, sorted by score desc (`?min_score=` `?status=` `?page=` `?per_page=`) |
-| `GET` | `/profiles/<uuid>/recommendations` | Content recommendations |
+| `GET` | `/profiles/<uuid>/recommendations` | Content recommendations, paginated (`?priority=high|medium|low` `?page=` `?per_page=`) |
 | `POST` | `/queries/<uuid>/recheck` | Re-run Agent 2 on one query (live call) |
 
 ```bash

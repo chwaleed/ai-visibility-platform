@@ -105,9 +105,16 @@ export interface Paginated<T> {
   pagination: Pagination
 }
 
-export interface QueryListParams {
-  min_score?: number
-  status?: VisibilityStatus
+export interface PageParams {
   page?: number
   per_page?: number
+}
+
+export interface QueryListParams extends PageParams {
+  min_score?: number
+  status?: VisibilityStatus
+}
+
+export interface RecommendationListParams extends PageParams {
+  priority?: Priority
 }

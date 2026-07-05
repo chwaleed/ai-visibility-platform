@@ -2,6 +2,16 @@
 from typing import Any
 
 from flask import Response, jsonify
+from werkzeug.datastructures import MultiDict
+
+MAX_PER_PAGE = 100
+
+
+def page_args(args: MultiDict, default_per_page: int = 20) -> tuple[int, int]:
+    """Clamped (page, per_page) from request args — shared by every paginated endpoint."""
+    page = max(args.get("page", 1, type=int), 1)
+    per_page = min(max(args.get("per_page", default_per_page, type=int), 1), MAX_PER_PAGE)
+    return page, per_page
 
 
 class ApiResponse:
