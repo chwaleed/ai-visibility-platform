@@ -38,6 +38,18 @@ docker compose up --build
 
 API on http://localhost:5000, dashboard on http://localhost:3000. `VITE_API_BASE_URL` is a **build ARG** (Vite bakes env at build time) — set it in `docker-compose.yml`, not as a runtime env var.
 
+### Run without building — public Docker Hub images
+
+Every push to `main` publishes both images to Docker Hub (`ai-visibility-backend`, `ai-visibility-frontend` — tagged `latest` + commit SHA). To run the stack straight from the registry, the only files you need are `docker-compose.prod.yml` and an env file:
+
+```bash
+export DOCKERHUB_USERNAME=chwaleed          # the Docker Hub account the images live under
+cp backend/.env.example ./backend.env       # fill in real keys (placeholders work; pipeline degrades gracefully)
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Dashboard on http://localhost:3000 (bound to localhost; in production a host nginx with TLS fronts it). The backend is never published — the frontend's nginx proxies `/api/` to it over the compose network, so there is nothing else to expose or configure.
+
 All environment variables are listed in each project's `.env.example` (no real keys committed).
 
 ## Architecture decisions (summary)
