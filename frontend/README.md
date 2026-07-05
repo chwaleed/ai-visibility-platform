@@ -83,3 +83,5 @@ docker run -p 3000:80 ai-visibility-web        # http://localhost:3000
 ```
 
 Multi-stage: Node builds the static bundle, nginx serves it with SPA fallback (`nginx.conf`). Because Vite inlines env at build time, point the app at a different API by changing the build arg — a runtime env var has no effect. `docker compose up` from the repo root wires this alongside the backend.
+
+**Production (`docker-compose.prod.yml` + the deploy workflow):** only the frontend is published to the host. The image is built with an **empty** `VITE_API_BASE_URL`, so the app calls `/api/v1` on its own origin and nginx proxies `/api/` to the `backend` service over the compose network (runtime DNS resolver, 300 s read timeout for long sync runs). Side benefit: same-origin requests make CORS a non-issue in production.

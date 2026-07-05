@@ -5,8 +5,6 @@
 # (Settings → Environments → production → Environment secrets):
 #   DOCKERHUB_USERNAME   Docker Hub username
 #   DOCKERHUB_TOKEN      Docker Hub access token (hub.docker.com → Account settings → Security)
-#   VITE_API_BASE_URL    Public URL browsers reach the API at, e.g. http://<server-ip>:5000
-#                        (Vite bakes it into the frontend bundle at BUILD time)
 #   SERVER_HOST          Server IP or hostname
 #   SERVER_USER          SSH user (e.g. ubuntu)
 #   SERVER_SSH_KEY       Private SSH key for that user (PEM contents)
@@ -53,8 +51,10 @@ jobs:
         with:
           context: ./frontend
           push: true
+          # Empty → the app calls /api/v1 relative to its own origin; nginx
+          # proxies it to the backend container (never published to the host).
           build-args: |
-            VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
+            VITE_API_BASE_URL=
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/ai-visibility-frontend:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/ai-visibility-frontend:${{ github.sha }}

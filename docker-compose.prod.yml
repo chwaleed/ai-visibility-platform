@@ -5,9 +5,9 @@
 #   create backend.env with real values — see backend/.env.example
 services:
   backend:
+    # Not published to the host — only the frontend is exposed; nginx proxies
+    # /api/ to this service over the compose network.
     image: ${DOCKERHUB_USERNAME}/ai-visibility-backend:latest
-    ports:
-      - "5000:5000"
     env_file:
       - ./backend.env
     volumes:
