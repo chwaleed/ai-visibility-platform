@@ -17,7 +17,9 @@ services:
   frontend:
     image: ${DOCKERHUB_USERNAME}/ai-visibility-frontend:latest
     ports:
-      - "3000:80"
+      # localhost-only: reachable through the host nginx (domain + TLS), never
+      # directly via http://<ip>:3000
+      - "127.0.0.1:3000:80"
     depends_on:
       - backend
     restart: unless-stopped
