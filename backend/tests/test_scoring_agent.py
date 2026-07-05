@@ -90,7 +90,7 @@ def test_score_all_happy_path(app, monkeypatch):
     assert len(scored) == 3
     assert all(s.visible is True for s in scored)
     assert all(0.0 <= s.opportunity_score <= 1.0 for s in scored)
-    assert usage.total == 90  # 3 probes x 30
+    assert usage.total == 270  # 3 queries x 3 self-consistency samples x 30
 
 
 def test_score_all_probe_failure_marks_unknown_and_continues(app, monkeypatch):
@@ -113,6 +113,37 @@ def test_score_all_probe_failure_marks_unknown_and_continues(app, monkeypatch):
     assert ok.visible is False
     # SE Ranking empty → neutral defaults applied
     assert ok.volume == 0 and ok.difficulty == 50
+
+
+def test_self_consistency_majority_visible_wins(app, monkeypatch):
+    # 2 of 3 sampled answers mention the target → visible, median position kept.
+    monkeypatch.setattr(scoring, "fetch_keyword_metrics", lambda kws: ({}, {}))
+    monkeypatch.setattr(scoring, "MAX_PROBE_WORKERS", 1)   # deterministic sample order
+    answers = iter(["Frase is my top pick.", "I'd start with Frase.", "Surfer SEO only."])
+    monkeypatch.setattr(scoring, "generate_text",
+                        lambda system, user, **kw: (next(answers), Usage(1, 1)))
+
+    scored, _ = VisibilityScoringAgent().score_all(_profile(), _items(1))
+    assert scored[0].visible is True and scored[0].position == 1
+
+
+def test_self_consistency_tie_is_unknown(app, monkeypatch):
+    # 1 visible, 1 not, 1 failed sample → tie among usable votes → unknown.
+    monkeypatch.setattr(scoring, "fetch_keyword_metrics", lambda kws: ({}, {}))
+    monkeypatch.setattr(scoring, "MAX_PROBE_WORKERS", 1)
+    outcomes = iter([RuntimeError("probe exploded"),
+                     ("Frase is solid.", Usage(1, 1)),
+                     ("Surfer SEO only.", Usage(1, 1))])
+
+    def sample(system, user, **kw):
+        out = next(outcomes)
+        if isinstance(out, Exception):
+            raise out
+        return out
+
+    monkeypatch.setattr(scoring, "generate_text", sample)
+    scored, _ = VisibilityScoringAgent().score_all(_profile(), _items(1))
+    assert scored[0].visible is None and scored[0].position is None
 
 
 def test_probe_prompt_never_leaks_target(app, monkeypatch):

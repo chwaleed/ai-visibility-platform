@@ -21,9 +21,9 @@ Business Profile ("Frase", frase.io, competitors: [surferseo.com, ...])
 ┌──────────────────────────────────────────────────────────────────┐
 │ AGENT 2 · Visibility Scoring           claude-haiku-4-5          │
 │ • ONE batched SE Ranking call → real volume + difficulty         │
-│ • Per query (5 parallel workers): Haiku answers the question     │
-│   naturally → deterministic scan: is the domain in the answer?   │
-│   At what position vs competitors?                               │
+│ • Per query: 3 independent Haiku answers (parallel pool),        │
+│   majority vote on visibility (self-consistency) → deterministic │
+│   scan: is the domain in the answer? At what position?           │
 │ • Multi-factor opportunity score (pure function)                 │
 │ • Any per-query failure → status "unknown", run continues        │
 └──────────────────────────────┬───────────────────────────────────┘
@@ -46,6 +46,18 @@ Business Profile ("Frase", frase.io, competitors: [surferseo.com, ...])
 - **Brand matching in space-stripped text:** "Surfer SEO" in an answer matches domain root `surferseo` without fragile heuristics — and a surfing article does *not* count as a brand mention (tested).
 - **Partial-failure policy** (assessment requirement): Agent 1 fails → run fails (nothing to score). One query's probe fails → that query is `unknown`, the run continues. Agent 3 fails → run completes without recommendations, error recorded.
 - **Every response through one `ApiResponse` class** — consistent success shapes and `{"error": {"code", "message"}}` envelope everywhere.
+
+## Prompt engineering — technique per agent, chosen by failure mode
+
+All prompts live in one reviewable file, [`app/agents/prompts.py`](backend/app/agents/prompts.py). Each applies a specific researched technique picked for that agent's observed failure mode — and two techniques were deliberately rejected:
+
+| Agent | Technique | Why |
+|---|---|---|
+| 1 · Discovery | **Few-shot examples** — 4 demonstrations, balanced across the 3 intent labels, plus one explicit BAD-keyword counter-example | The `keyword` field feeds real SE Ranking lookups, and sentence-like keywords measurably return no data. Demonstrations teach output format and label space better than prose descriptions (Brown et al. 2020, [arXiv:2005.14165](https://arxiv.org/abs/2005.14165); Min et al. 2022, [arXiv:2202.12837](https://arxiv.org/abs/2202.12837)). Examples are label-balanced to avoid majority-label bias (Zhao et al. 2021, [arXiv:2102.09690](https://arxiv.org/abs/2102.09690)). Also handles the sparse-profile edge case explicitly. |
+| 2 · Probe | **Deliberately zero-shot** in the prompt; **self-consistency** in code — 3 sampled answers per query, majority vote, ties → `unknown` | Few-shot here would be a bug: any example answer naming tools biases which brands the model mentions. The real failure mode was single-sample variance (identical re-runs flipping visible ↔ not visible); sampling diverse answers and taking the majority is exactly what self-consistency addresses (Wang et al. 2022, [arXiv:2203.11171](https://arxiv.org/abs/2203.11171)). Cost: 3× Haiku probes per query, wall-clock flat (same parallel pool). |
+| 3 · Recommendations | **One-shot worked example + mechanical calibration + light chain-of-thought** | A worked example anchors "concrete, publishable title" better than describing it; priority is now assigned from explicit score thresholds (≥0.70 high / 0.50–0.69 medium / else low) instead of the drift-prone "biggest → high"; and a two-step diagnose-the-gap → choose-the-format instruction sequences the reasoning (Wei et al. 2022, [arXiv:2201.11903](https://arxiv.org/abs/2201.11903)). |
+
+Rejected: self-consistency for Agents 1/3 (generative outputs have no single answer to vote on — pure cost), and Tree-of-Thoughts/ReAct-style scaffolding (over-engineering for a 3-step pipeline; simplicity is a stated evaluation criterion).
 
 ## Opportunity score
 
@@ -127,7 +139,7 @@ backend/            Flask API — app factory, blueprints, agents, orchestrator
   app/services/     pipeline.py — orchestrator + run payload builder
   app/utils/        responses.py (ApiResponse) · scoring.py (opportunity formula)
   app/models/       4 SQLAlchemy models, UUID PKs, Alembic migrations
-  tests/            62 tests, all external calls mocked
+  tests/            64 tests, all external calls mocked
 frontend/           React + TypeScript dashboard (Vite, shadcn/ui, TanStack Query, Zustand)
   src/services/     api.ts — the single network boundary (axios + ApiError envelope)
   src/hooks/        one hook per resource + usePipeline (trigger + poll)
@@ -137,7 +149,7 @@ docs/               assessment brief · design spec · implementation plans
 
 ## Testing philosophy
 
-A few tests that verify behavior beat a hundred that verify mocks: formula *ordering* properties (more volume ⇒ higher score; absent ⇒ beats visible), agent prompt/parse contracts with malformed-output fallbacks, orchestrator partial-failure paths (one probe dies → run completes; Agent 1 dies → run fails), brand-matching precision (a surfing article is not a brand mention), and a thread-safety-conscious usage accumulator. Everything runs keyless in ~1 second.
+A few tests that verify behavior beat a hundred that verify mocks: formula *ordering* properties (more volume ⇒ higher score; absent ⇒ beats visible), agent prompt/parse contracts with malformed-output fallbacks, orchestrator partial-failure paths (one probe dies → run completes; Agent 1 dies → run fails), brand-matching precision (a surfing article is not a brand mention), self-consistency voting (majority wins; a 1–1 tie is `unknown`, not a guess), and a thread-safety-conscious usage accumulator. Everything runs keyless in ~1 second.
 
 ## AI tools disclosure
 

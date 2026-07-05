@@ -2,15 +2,19 @@
 
 For each discovered query:
 1. Real search volume + difficulty (SE Ranking, batched once per run).
-2. Visibility probe: Haiku answers the question NATURALLY (the prompt never
+2. Visibility probes: Haiku answers the question NATURALLY (the prompt never
    mentions the target business — mentioning it would bias the simulation),
    then deterministic string-matching detects which brands appear and in
-   what order.
+   what order. PROBE_SAMPLES independent answers are sampled per query and
+   visibility is decided by majority vote — self-consistency (Wang et al.
+   2022, arXiv:2203.11171) — because a single sampled answer flips
+   run-to-run on borderline queries.
 3. Multi-factor opportunity score.
 
 Per-query failures mark that query unknown and never abort the run.
 """
 import logging
+import statistics
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
@@ -24,6 +28,7 @@ from app.utils.scoring import compute_opportunity_score
 logger = logging.getLogger("agents.scoring")
 
 MAX_PROBE_WORKERS = 5
+PROBE_SAMPLES = 3   # self-consistency votes per query (odd → fewer ties)
 DEFAULT_VOLUME = 0
 DEFAULT_DIFFICULTY = 50
 
@@ -80,6 +85,28 @@ def extract_visibility(
     return True, position
 
 
+def _majority_vote(
+    samples: list[tuple[bool | None, int | None]],
+) -> tuple[bool | None, int | None]:
+    """Self-consistency vote across probe samples (Wang et al. 2022).
+
+    Failed samples (None) don't vote. Majority visible → True with the median
+    position; majority absent → False. A tie or zero usable samples is genuine
+    uncertainty → None ("unknown"), which the score formula treats as
+    opportunity-leaning (gap 0.7) rather than assuming either outcome.
+    """
+    votes = [(v, p) for v, p in samples if v is not None]
+    if not votes:
+        return None, None
+    yes_positions = [p for v, p in votes if v and p is not None]
+    yes, no = len([1 for v, _ in votes if v]), len([1 for v, _ in votes if not v])
+    if yes > no:
+        return True, statistics.median_low(yes_positions) if yes_positions else None
+    if no > yes:
+        return False, None
+    return None, None
+
+
 class VisibilityScoringAgent:
     def score_all(
         self, profile: BusinessProfile, items: list[DiscoveredQueryItem],
@@ -91,37 +118,42 @@ class VisibilityScoringAgent:
         target = brand_variants(profile.domain, profile.name)
         competitors = [brand_variants(c) for c in profile.competitors]
 
-        def probe(item: DiscoveredQueryItem) -> tuple[ScoredQuery, Usage]:
-            visible: bool | None
-            position: int | None
-            probe_usage = Usage()
+        def probe_once(item: DiscoveredQueryItem) -> tuple[bool | None, int | None, Usage]:
             try:
-                answer, probe_usage = generate_text(SCORING_PROBE_SYSTEM, item.question,
-                                                    model=PROBE_MODEL)
+                answer, usage = generate_text(SCORING_PROBE_SYSTEM, item.question,
+                                              model=PROBE_MODEL)
                 visible, position = extract_visibility(answer, target, competitors)
-            except Exception as e:  # noqa: BLE001 — isolate per-query failures
+                return visible, position, usage
+            except Exception as e:  # noqa: BLE001 — isolate per-sample failures
                 logger.warning("visibility probe failed for %r: %s", item.question, e)
-                visible, position = None, None
+                return None, None, Usage()
+
+        # Flatten (query × sample) into one pool so samples run as parallel as
+        # queries do; pool.map preserves order, so slicing recovers each query.
+        tasks = [item for item in items for _ in range(PROBE_SAMPLES)]
+        with ThreadPoolExecutor(max_workers=MAX_PROBE_WORKERS) as pool:
+            flat = list(pool.map(probe_once, tasks))
+
+        scored: list[ScoredQuery] = []
+        # Usage is summed here in the main thread — `+=` from inside worker
+        # threads would be a read-modify-write race and could drop updates.
+        for i, item in enumerate(items):
+            samples = flat[i * PROBE_SAMPLES:(i + 1) * PROBE_SAMPLES]
+            for _, _, u in samples:
+                total.input_tokens += u.input_tokens
+                total.output_tokens += u.output_tokens
+            visible, position = _majority_vote([(v, p) for v, p, _ in samples])
 
             kw = normalize_keyword(item.keyword)
             volume = volumes.get(kw, DEFAULT_VOLUME)
             difficulty = difficulties.get(kw, DEFAULT_DIFFICULTY)
-            return ScoredQuery(
+            scored.append(ScoredQuery(
                 question=item.question, keyword=item.keyword, intent=item.intent,
                 volume=volume, difficulty=difficulty,
                 visible=visible, position=position,
                 opportunity_score=compute_opportunity_score(
                     volume, difficulty, visible, position, item.intent),
-            ), probe_usage
-
-        with ThreadPoolExecutor(max_workers=MAX_PROBE_WORKERS) as pool:
-            results = list(pool.map(probe, items))
-        scored = [r for r, _ in results]
-        # Usage is summed here in the main thread — `+=` from inside worker
-        # threads would be a read-modify-write race and could drop updates.
-        for _, u in results:
-            total.input_tokens += u.input_tokens
-            total.output_tokens += u.output_tokens
+            ))
         return scored, total
 
     def score_single(
