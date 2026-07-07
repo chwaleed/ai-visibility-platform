@@ -1,4 +1,6 @@
+import { BarChart3 } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts"
+import { IconBadge } from "@/components/SectionHeading"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
@@ -23,7 +25,10 @@ export function ScoreDistribution({ queries }: { queries: DiscoveredQuery[] }) {
   return (
     <Card className="overflow-visible rounded-2xl border border-border ring-0 shadow-none">
       <CardHeader>
-        <CardTitle className="text-[14.5px]">Opportunity score distribution</CardTitle>
+        <CardTitle className="flex items-center gap-2.5 text-[14.5px]">
+          <IconBadge icon={BarChart3} />
+          Opportunity score distribution
+        </CardTitle>
         <CardDescription>Where this profile's {queries.length} queries fall</CardDescription>
       </CardHeader>
       <CardContent>

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { Loader2, Play } from "lucide-react"
+import { Eye, Lightbulb, Loader2, Play, Search, Target } from "lucide-react"
 import { useState } from "react"
 import { useParams } from "react-router"
 import { NoRunBanner, PipelineStatus } from "@/components/PipelineStatus"
@@ -113,14 +113,15 @@ export default function ProfileDetail() {
 
       {/* KPI row */}
       <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Queries" value={profile.total_queries} />
-        <StatCard label="Avg Opportunity" value={profile.avg_opportunity_score?.toFixed(2) ?? "—"} />
+        <StatCard label="Total Queries" value={profile.total_queries} icon={Search} />
+        <StatCard label="Avg Opportunity" value={profile.avg_opportunity_score?.toFixed(2) ?? "—"} icon={Target} />
         <StatCard
           label="Visibility Rate"
           value={visRate}
           sub={items.length ? `${visN} / ${items.length}` : undefined}
+          icon={Eye}
         />
-        <StatCard label="Recommendations" value={recsCount} />
+        <StatCard label="Recommendations" value={recsCount} icon={Lightbulb} />
       </div>
 
       {/* Tabs */}

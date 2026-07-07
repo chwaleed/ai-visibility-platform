@@ -1,4 +1,6 @@
+import { Crosshair } from "lucide-react"
 import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis, ZAxis } from "recharts"
+import { IconBadge } from "@/components/SectionHeading"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
@@ -33,7 +35,10 @@ export function VolumeDifficultyScatter({ queries }: { queries: DiscoveredQuery[
   return (
     <Card className="overflow-visible rounded-2xl border border-border ring-0 shadow-none">
       <CardHeader>
-        <CardTitle className="text-[14.5px]">Volume vs difficulty</CardTitle>
+        <CardTitle className="flex items-center gap-2.5 text-[14.5px]">
+          <IconBadge icon={Crosshair} />
+          Volume vs difficulty
+        </CardTitle>
         <CardDescription>Top-left = high demand, low competition (best gaps)</CardDescription>
       </CardHeader>
       <CardContent>

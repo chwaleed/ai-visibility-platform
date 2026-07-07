@@ -1,6 +1,8 @@
+import { History } from "lucide-react"
 import { useState } from "react"
 import { Pager } from "@/components/Pager"
 import { RunsTable } from "@/components/RunsTable"
+import { SectionHeading } from "@/components/SectionHeading"
 import { EmptyState } from "@/components/states/EmptyState"
 import { ErrorState } from "@/components/states/ErrorState"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -21,6 +23,7 @@ export function RunsTab({ profileUuid }: { profileUuid: string }) {
 
   return (
     <div className="space-y-3.5">
+      <SectionHeading icon={History} title="Pipeline runs" description="Every trigger of the 3-agent pipeline" />
       <RunsTable runs={data.items} />
       {pagination.total_pages > 1 && (
         <div className="flex flex-wrap items-center justify-between gap-2.5">

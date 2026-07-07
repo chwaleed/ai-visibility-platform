@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react"
+import { Building2, Plus, Search, Target } from "lucide-react"
 import { useState } from "react"
 import { Link } from "react-router"
 import { Pager } from "@/components/Pager"
@@ -69,9 +69,9 @@ export default function Dashboard() {
       {data && items.length > 0 && (
         <>
           <div className="grid gap-3.5 sm:grid-cols-3">
-            <StatCard label="Profiles" value={items.length} />
-            <StatCard label="Queries tracked" value={totalQueries.toLocaleString()} />
-            <StatCard label="Avg opportunity" value={avgScore} />
+            <StatCard label="Profiles" value={items.length} icon={Building2} />
+            <StatCard label="Queries tracked" value={totalQueries.toLocaleString()} icon={Search} />
+            <StatCard label="Avg opportunity" value={avgScore} icon={Target} />
           </div>
           <div className="grid gap-3.5 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
             {paged.map(p => <ProfileCard key={p.profile_uuid} profile={p} />)}

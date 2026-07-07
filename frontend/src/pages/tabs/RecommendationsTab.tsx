@@ -1,6 +1,7 @@
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Lightbulb } from "lucide-react"
 import { useState } from "react"
 import { Pager } from "@/components/Pager"
+import { SectionHeading } from "@/components/SectionHeading"
 import { Pill, type Tone } from "@/components/StatusBadge"
 import { EmptyState } from "@/components/states/EmptyState"
 import { ErrorState } from "@/components/states/ErrorState"
@@ -51,6 +52,11 @@ export function RecommendationsTab({ profileUuid }: { profileUuid: string }) {
 
   return (
     <div className="space-y-3.5">
+      <SectionHeading
+        icon={Lightbulb}
+        title="Content recommendations"
+        description="Where this domain is absent from AI answers"
+      />
       <div className="flex flex-wrap gap-2">
         {CHIPS.map(c => (
           <button

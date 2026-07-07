@@ -1,7 +1,9 @@
+import { Search } from "lucide-react"
 import { useEffect } from "react"
 import { PaginationControls } from "@/components/PaginationControls"
 import { QueryFilters } from "@/components/QueryFilters"
 import { QueryTable } from "@/components/QueryTable"
+import { SectionHeading } from "@/components/SectionHeading"
 import { EmptyState } from "@/components/states/EmptyState"
 import { ErrorState } from "@/components/states/ErrorState"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -39,13 +41,16 @@ export function QueriesTab({ profileUuid }: { profileUuid: string }) {
         />
       )}
       {listQuery.data && listQuery.data.items.length > 0 && (
-        <div className="rounded-2xl border border-border bg-card p-1.5">
-          <QueryTable
-            queries={listQuery.data.items}
-            checkingIds={checkingIds}
-            onRecheck={recheck}
-          />
-          <PaginationControls pagination={listQuery.data.pagination} />
+        <div>
+          <SectionHeading icon={Search} title="Discovered queries" description="Sorted by opportunity score" />
+          <div className="rounded-2xl border border-border bg-card p-1.5">
+            <QueryTable
+              queries={listQuery.data.items}
+              checkingIds={checkingIds}
+              onRecheck={recheck}
+            />
+            <PaginationControls pagination={listQuery.data.pagination} />
+          </div>
         </div>
       )}
     </div>

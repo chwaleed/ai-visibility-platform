@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query"
+import { Eye } from "lucide-react"
 import { ScoreDistribution } from "@/components/charts/ScoreDistribution"
 import { VolumeDifficultyScatter } from "@/components/charts/VolumeDifficultyScatter"
+import { IconBadge } from "@/components/SectionHeading"
 import { EmptyState } from "@/components/states/EmptyState"
 import { ErrorState } from "@/components/states/ErrorState"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -22,7 +24,10 @@ function VisibilityBreakdown({ queries }: { queries: DiscoveredQuery[] }) {
 
   return (
     <div className="rounded-2xl border border-border bg-card p-5">
-      <h3 className="mb-4 text-[14.5px] font-semibold">Visibility breakdown</h3>
+      <h3 className="mb-4 flex items-center gap-2.5 text-[14.5px] font-semibold">
+        <IconBadge icon={Eye} />
+        Visibility breakdown
+      </h3>
       <div className="mb-3.5 flex h-3.5 overflow-hidden rounded-lg bg-muted">
         <div className="bg-chart-2" style={{ width: pct(vis) }} />
         <div className="bg-chart-4" style={{ width: pct(not) }} />
